@@ -31,7 +31,6 @@ const files = [
 
 const bottomTabs = [
   { id: 'home', label: 'الرئيسية', icon: '🏠' },
-  { id: 'videos', label: 'الفيديوهات', icon: '🎬' },
   { id: 'requests', label: 'طلباتكم', icon: '📩' },
   { id: 'more', label: 'المزيد', icon: '☰' },
 ];
