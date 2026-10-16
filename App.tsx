@@ -7,15 +7,75 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Dimensions,
+  Animated,
+  Easing,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
+
+const screenWidth = Dimensions.get('window').width;
+
+// Snake segments arranged in a circle around Y
+const SNAKE_SEGMENTS = Array.from({ length: 12 }, (_, i) => {
+  const angle = (i / 12) * Math.PI * 2;
+  return {
+    id: i,
+    x: Math.cos(angle) * 60,
+    y: Math.sin(angle) * 60,
+  };
+});
+
+function SnakeLogo({ size = 160, color = '#2E7D32', bgColor = '#fff', spinning = true }) {
+  const spinAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!spinning) return;
+    Animated.loop(
+      Animated.timing(spinAnim, {
+        toValue: 1,
+        duration: 3000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [spinning]);
+
+  const rotation = spinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <Animated.View style={{ position: 'absolute', transform: [{ rotate: rotation }] }}>
+        {SNAKE_SEGMENTS.map((seg, i) => (
+          <View
+            key={seg.id}
+            style={{
+              position: 'absolute',
+              width: 10,
+              height: 10,
+              borderRadius: 5,
+              backgroundColor: color,
+              left: seg.x - 5,
+              top: seg.y - 5,
+              opacity: 0.4 + (i / SNAKE_SEGMENTS.length) * 0.6,
+            }}
+          />
+        ))}
+      </Animated.View>
+      <Text style={{ fontSize: size * 0.35, fontWeight: 'bold', color }}>Y</Text>
+    </View>
+  );
+}
 
 const videos = [
-  { id: 1, title: 'فيديو 1', views: '546', duration: '15:30' },
-  { id: 2, title: 'فيديو 2', views: '8', duration: '12:45' },
-  { id: 3, title: 'فيديو 3', views: '115', duration: '18:20' },
-  { id: 4, title: 'فيديو 4', views: '38', duration: '10:15' },
-  { id: 5, title: 'فيديو 5', views: '27', duration: '14:00' },
-  { id: 6, title: 'فيديو 6', views: '64', duration: '9:30' },
+  { id: 1, title: 'فيديو 1', views: '546', duration: '15:30', isVertical: false, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+  { id: 2, title: 'فيديو 2', views: '8', duration: '12:45', isVertical: false, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
+  { id: 3, title: 'فيديو 3', views: '115', duration: '18:20', isVertical: false, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
+  { id: 4, title: 'فيديو 4', views: '38', duration: '10:15', isVertical: true, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4' },
+  { id: 5, title: 'فيديو 5', views: '27', duration: '14:00', isVertical: true, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4' },
+  { id: 6, title: 'فيديو 6', views: '64', duration: '9:30', isVertical: true, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4' },
 ];
 
 const filterTabs = ['الكل', 'الأكثر مشاهدة', 'الأحدث'];
@@ -57,17 +117,38 @@ export default function App() {
   const [selectedVideo, setSelectedVideo] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isLandscape, setIsLandscape] = useState(false);
+  const videoRef = useRef<Video>(null);
+  const [showMore, setShowMore] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'premium'>('light');
+  const [splashVisible, setSplashVisible] = useState(true);
+  const [videoBuffering, setVideoBuffering] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashVisible(false), 30000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const themes = {
+    light: { bg: '#FAF6EF', text: '#3E322A', card: '#F7F2E9', accent: '#8B7DA6', banner: ['#9E8D7D', '#C8B8A6'], btn: '#8B7DA6', btnText: '#FFFFFF', sub: 'rgba(255,255,255,0.85)', title: '#FFFFFF' },
+    dark: { bg: '#2A0848', text: '#FFD85E', card: '#240B45', accent: '#FF2F93', banner: ['#023B1A', '#14B866'], btn: '#661733', btnText: '#F9E7BA', sub: 'rgba(249,231,186,0.85)', title: '#FFD85E' },
+    premium: { bg: '#1C1C1C', text: '#F5F5F0', card: '#2A2A2A', accent: '#C9A227', banner: ['#2D1B4E', '#1E1230'], btn: '#C9A227', btnText: '#1C1C1C', sub: 'rgba(245,245,240,0.75)', title: '#E8D48B' },
+  };
+
+  const t = themes[theme];
 
   const renderHome = () => {
+    if (selectedVideo) return renderPlayer();
+
     if (selectedFile) {
       const fileVideos = videos.filter((v) => v.id <= selectedFile);
       return (
-        <View style={styles.screen}>
+        <View style={[styles.screen, { backgroundColor: t.bg }]}>
           <View style={styles.fileHeader}>
             <TouchableOpacity onPress={() => setSelectedFile(null)} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>→</Text>
+              <Text style={[styles.backBtnText, { color: t.accent }]}>→</Text>
             </TouchableOpacity>
-            <Text style={styles.pageTitle}>ملف {selectedFile}</Text>
+            <Text style={[styles.pageTitle, { color: t.text }]}>ملف {selectedFile}</Text>
           </View>
           <FlatList
             data={fileVideos}
@@ -80,7 +161,7 @@ export default function App() {
                   <Text style={styles.videoPlayIcon}>▶️</Text>
                   <Text style={styles.videoDuration}>{item.duration}</Text>
                 </View>
-                <Text style={styles.videoTitle}>{item.title}</Text>
+                <Text style={[styles.videoTitle, { color: t.text }]}>{item.title}</Text>
                 <Text style={styles.videoViews}>{item.views} مشاهدة</Text>
               </TouchableOpacity>
             )}
@@ -90,7 +171,25 @@ export default function App() {
     }
 
     return (
-      <View style={styles.screen}>
+      <View style={[styles.screen, { backgroundColor: t.bg }]}>
+        {/* Profile Header */}
+        <View style={styles.profileHeader}>
+          <View style={[styles.avatar, { backgroundColor: t.card }]}>
+            <Text style={styles.avatarText}>👤</Text>
+          </View>
+          <Text style={[styles.profileName, { color: t.text }]}>المكتبة</Text>
+        </View>
+
+        {/* Subscription Banner */}
+        <View style={[styles.banner, { backgroundColor: t.banner[0] }]}>
+          <View style={styles.bannerContent}>
+            <Text style={[styles.bannerTitle, { color: t.title }]}>انضم لاشتراك المكتبة!</Text>
+            <Text style={[styles.bannerSub, { color: t.sub }]}>بدون إعلانات • مشاهدة أسرع</Text>
+          </View>
+          <TouchableOpacity style={[styles.bannerBtn, { backgroundColor: t.btn[0] }]}>
+            <Text style={[styles.bannerBtnText, { color: t.btnText }]}>ترقية</Text>
+          </TouchableOpacity>
+        </View>
         <FlatList
           data={files}
           numColumns={2}
@@ -101,7 +200,7 @@ export default function App() {
               <View style={styles.fileThumb}>
                 <Text style={styles.fileIcon}>📁</Text>
               </View>
-              <Text style={styles.fileName}>{item.name}</Text>
+              <Text style={[styles.fileName, { color: t.text }]}>{item.name}</Text>
               <Text style={styles.fileCount}>{item.count} فيديو</Text>
             </TouchableOpacity>
           )}
@@ -185,6 +284,31 @@ export default function App() {
   );
 
   const lastTap = useRef(0);
+  const wakeLockRef = useRef<any>(null);
+
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      }
+    } catch (e) {}
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (selectedVideo) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+    return () => releaseWakeLock();
+  }, [selectedVideo]);
 
   useEffect(() => {
     if (progress >= 100 && selectedVideo !== null) {
@@ -209,8 +333,10 @@ export default function App() {
       // Double tap
       if (locationX > screenWidth / 2) {
         setProgress((p) => Math.min(100, p + 10));
+        videoRef.current?.setPositionAsync((progress / 100) * 15000);
       } else {
         setProgress((p) => Math.max(0, p - 10));
+        videoRef.current?.setPositionAsync((progress / 100) * 15000);
       }
       lastTap.current = 0;
     } else {
@@ -224,20 +350,54 @@ export default function App() {
     }
   };
 
+  const onPlaybackStatusUpdate = (status: any) => {
+    if (status.isLoaded) {
+      setVideoBuffering(status.isBuffering || false);
+      const duration = status.durationMillis || 0;
+      const position = status.positionMillis || 0;
+      if (duration > 0) {
+        setProgress(Math.round((position / duration) * 100));
+      }
+      if (status.didJustFinish) {
+        const currentIndex = videos.findIndex((v) => v.id === selectedVideo);
+        if (currentIndex < videos.length - 1) {
+          setSelectedVideo(videos[currentIndex + 1].id);
+          setProgress(0);
+          setIsPlaying(true);
+        } else {
+          setIsPlaying(false);
+          setProgress(100);
+        }
+      }
+    }
+  };
+
   const renderPlayer = () => {
     const video = videos.find((v) => v.id === selectedVideo);
     if (!video) return null;
 
     return (
-      <View style={styles.screen}>
+      <View style={[styles.screen, { backgroundColor: t.bg }]}>
         <TouchableOpacity onPress={() => setSelectedVideo(null)} style={styles.playerBackBtn}>
-          <Text style={styles.playerBackText}>→</Text>
+          <Text style={[styles.playerBackText, { color: t.accent }]}>→</Text>
         </TouchableOpacity>
 
-        <View style={styles.playerContainer}>
-          <TouchableOpacity onPress={handleScreenTap} style={styles.playerScreen} activeOpacity={1}>
-            <Text style={styles.playerPlayIcon}>{isPlaying ? '⏸️' : '▶️'}</Text>
-          </TouchableOpacity>
+        <View style={[styles.playerContainer, isLandscape && styles.playerContainerLandscape]}>
+          {videoBuffering ? (
+            <View style={[styles.playerScreen, video.isVertical && { height: 300 }, isLandscape && styles.playerScreenLandscape, { justifyContent: 'center', alignItems: 'center' }]}>
+              <SnakeLogo size={120} color="#333" spinning={true} />
+            </View>
+          ) : (
+            <Video
+              ref={videoRef}
+              source={{ uri: video.url }}
+              style={[styles.playerScreen, video.isVertical && { height: 300 }, isLandscape && styles.playerScreenLandscape]}
+              shouldPlay={isPlaying}
+              isLooping={false}
+              resizeMode={video.isVertical ? ResizeMode.CONTAIN : ResizeMode.COVER}
+              onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+            />
+          )}
 
           <View style={styles.playerControls}>
             <TouchableOpacity onPress={() => setIsPlaying(!isPlaying)} style={styles.controlBtn}>
@@ -251,6 +411,9 @@ export default function App() {
             </View>
             <TouchableOpacity onPress={() => setProgress(Math.min(100, progress + 10))} style={styles.controlBtn}>
               <Text style={styles.controlBtnText}>⏩</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsLandscape(!isLandscape)} style={styles.controlBtn}>
+              <Text style={styles.controlBtnText}>{isLandscape ? '📱' : '🔄'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -305,15 +468,50 @@ export default function App() {
     );
   };
 
+  const renderMore = () => (
+    <View style={[styles.screen, { backgroundColor: t.bg }]}>
+      <Text style={[styles.pageTitle, { color: t.text }]}>المزيد</Text>
+
+      <TouchableOpacity
+        style={[styles.themeBtn, { backgroundColor: t.card }]}
+        onPress={() => setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'premium' : 'light')}
+      >
+        <Text style={[styles.themeBtnText, { color: t.text }]}>
+          🎨 المظهر: {theme === 'light' ? 'فاتح' : theme === 'dark' ? 'داكن' : 'بريميوم'}
+        </Text>
+      </TouchableOpacity>
+
+      <View style={[styles.moreItem, { backgroundColor: t.card }]}>
+        <Text style={[styles.moreItemText, { color: t.text }]}>👤 الحساب</Text>
+      </View>
+      <View style={[styles.moreItem, { backgroundColor: t.card }]}>
+        <Text style={[styles.moreItemText, { color: t.text }]}>⚙️ الإعدادات</Text>
+      </View>
+      <View style={[styles.moreItem, { backgroundColor: t.card }]}>
+        <Text style={[styles.moreItemText, { color: t.text }]}>ℹ️ عن التطبيق</Text>
+      </View>
+    </View>
+  );
+
   const renderPlaceholder = (name: string) => (
     <View style={styles.screen}>
       <Text style={styles.placeholderText}>{name}</Text>
     </View>
   );
 
+  if (splashVisible) {
+    return (
+      <View style={[styles.splashContainer, { backgroundColor: t.bg }]}>
+        <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} backgroundColor={t.bg} />
+        <SnakeLogo size={160} color={t.accent} spinning={true} />
+        <Text style={[styles.splashText, { color: t.text }]}>المكتبة</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+    <View style={[styles.container, { backgroundColor: t.bg }]}>
+      <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} backgroundColor={t.bg} />
       
       <View style={styles.content}>
         {activeTab === 'home' && renderHome()}
@@ -321,20 +519,20 @@ export default function App() {
         {activeTab === 'videos' && renderVideos()}
         {activeTab === 'requests' && renderRequests()}
         {activeTab === 'tests' && renderPlaceholder('الاختبارات')}
-        {activeTab === 'more' && renderPlaceholder('المزيد')}
+        {activeTab === 'more' && renderMore()}
       </View>
 
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: t.bg, borderTopColor: t.card }]}>
         {bottomTabs.map((tab) => (
           <TouchableOpacity
             key={tab.id}
             style={styles.tabItem}
             onPress={() => setActiveTab(tab.id)}
           >
-            <Text style={[styles.tabIcon, activeTab === tab.id && styles.tabIconActive]}>
+            <Text style={[styles.tabIcon, activeTab === tab.id && { color: t.accent }]}>
               {tab.icon}
             </Text>
-            <Text style={[styles.tabLabel, activeTab === tab.id && styles.tabLabelActive]}>
+            <Text style={[styles.tabLabel, { color: t.text }, activeTab === tab.id && { color: t.accent }]}>
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -345,6 +543,16 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  splashText: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -357,46 +565,51 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#e0e0e0',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 28,
+    fontSize: 24,
   },
   profileName: {
-    marginTop: 8,
-    fontSize: 16,
+    marginTop: 4,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#4CAF50',
     marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 16,
+    marginTop: 4,
+    borderRadius: 16,
+    padding: 14,
   },
   bannerContent: {
     flex: 1,
   },
   bannerTitle: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
   bannerSub: {
-    color: '#E8F5E9',
     fontSize: 12,
     marginTop: 4,
+  },
+  bannerBtn: {
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  bannerBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   upgradeBtn: {
     backgroundColor: '#fff',
@@ -586,6 +799,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 100,
   },
+  themeBtn: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  themeBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  moreItem: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+  },
+  moreItemText: {
+    fontSize: 16,
+  },
   filesGrid: {
     paddingHorizontal: 12,
   },
@@ -641,13 +874,30 @@ const styles = StyleSheet.create({
   playerContainer: {
     paddingHorizontal: 16,
   },
+  playerContainerLandscape: {
+    paddingHorizontal: 0,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    backgroundColor: '#000',
+    zIndex: 10,
+  },
+  playerScreenLandscape: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 0,
+  },
   playerScreen: {
     width: '100%',
-    height: 200,
+    height: screenWidth * 0.5625,
     backgroundColor: '#000',
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   playerPlayIcon: {
     fontSize: 48,

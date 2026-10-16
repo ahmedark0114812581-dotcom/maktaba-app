@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة التحكم</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; }
+    .header { background: #2E7D32; color: #fff; padding: 16px; text-align: center; font-size: 18px; font-weight: bold; position: sticky; top: 0; z-index: 100; }
+    .tabs { display: flex; background: #fff; border-bottom: 1px solid #e0e0e0; position: sticky; top: 56px; z-index: 100; }
+    .tab { flex: 1; padding: 14px; text-align: center; font-size: 13px; color: #999; cursor: pointer; border-bottom: 2px solid transparent; }
+    .tab.active { color: #2E7D32; font-weight: 600; border-bottom-color: #2E7D32; }
+    .content { padding: 16px; padding-bottom: 100px; max-width: 600px; margin: 0 auto; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
+    .toolbar-btn { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fff; font-size: 13px; cursor: pointer; text-align: center; }
+    .toolbar-btn.active { background: #E8F5E9; border-color: #2E7D32; color: #2E7D32; font-weight: 600; }
+    .toolbar-btn.danger { background: #ffebee; border-color: #ffcdd2; color: #c62828; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .card-title { font-size: 14px; font-weight: 600; color: #333; }
+    .card-sub { font-size: 12px; color: #999; margin-top: 4px; }
+    .stats { display: flex; gap: 8px; margin-bottom: 16px; }
+    .stat { flex: 1; background: #fff; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .stat-num { font-size: 24px; font-weight: bold; color: #333; }
+    .stat-label { font-size: 11px; color: #999; margin-top: 4px; }
+    .btn { background: #2E7D32; color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; }
+    .btn-back { background: #fff; color: #333; border: 1px solid #ddd; width: auto; padding: 8px 16px; margin-bottom: 16px; }
+    .input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+    .badge { font-size: 11px; padding: 3px 10px; border-radius: 12px; }
+    .badge-green { background: #E8F5E9; color: #2E7D32; }
+    .badge-orange { background: #FFF3E0; color: #E65100; }
+    .badge-blue { background: #E3F2FD; color: #1565C0; }
+    .section-header { font-size: 14px; font-weight: 600; color: #666; margin: 16px 0 8px; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 14px; z-index: 200; display: none; }
+    select.input { appearance: none; }
+    .del-btn { background: none; border: none; color: #c62828; font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+    .del-btn:active { background: #ffebee; }
+    .file-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #fff; border-radius: 12px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); cursor: pointer; }
+    .file-row:active { background: #f5f5f5; }
+    .video-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #fff; border-radius: 12px; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .chart-card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .chart-title { font-size: 14px; font-weight: 600; color: #333; margin-bottom: 12px; }
+    .chart { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding-top: 8px; }
+    .bar { flex: 1; background: #4CAF50; border-radius: 4px 4px 0 0; min-height: 4px; position: relative; transition: height 0.3s; }
+    .bar-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #999; white-space: nowrap; }
+    .bar-value { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #333; font-weight: 600; }
+    .chart-container { padding-bottom: 24px; }
+  </style>
+</head>
+<body>
+  <div class="header">لوحة التحكم</div>
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('home', this)">الرئيسية</div>
+    <div class="tab" onclick="showTab('files', this)">الملفات</div>
+    <div class="tab" onclick="showTab('videos', this)">الفيديوهات</div>
+    <div class="tab" onclick="showTab('requests', this)">الطلبات</div>
+  </div>
+  <div class="content" id="content"></div>
+  <div class="toast" id="toast"></div>
+  <div class="modal-overlay" id="moveModal">
+    <div class="modal">
+      <div class="modal-title">نقل الفيديو إلى:</div>
+      <select class="modal-select" id="moveTarget">
+        <option value="">اختر الملف</option>
+      </select>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" onclick="closeMoveModal()">إلغاء</button>
+        <button class="modal-btn modal-btn-confirm" onclick="confirmMoveVideo()">نقل</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTab = 'home';
+    let files = [];
+    let videos = [];
+    let selectedVideoId = null;
+    let dragItem = null;
+    let openedFileId = null;
+
+    // Mock analytics data
+    const analytics = {
+      totalViews: 798,
+      videosWatched: 1247,
+      topFiles: [
+        { name: 'ملف 1', visits: 546 },
+        { name: 'ملف 3', visits: 115 },
+        { name: 'ملف 6', visits: 64 },
+      ],
+      dailyUsers: [12, 19, 15, 28, 35, 22, 31, 45, 38, 52, 48, 61, 55, 72],
+      days: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'],
+    };
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 2000);
+    }
+
+    function showTab(tab, el) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      selectedVideoId = null;
+      openedFileId = null;
+      render();
+    }
+
+    async function loadData() {
+      const [fRes, vRes] = await Promise.all([fetch('/api/files'), fetch('/api/videos')]);
+      files = await fRes.json();
+      videos = await vRes.json();
+    }
+
+    function openFile(fileId) {
+      openedFileId = fileId;
+      render();
+    }
+
+    function closeFile() {
+      openedFileId = null;
+      render();
+    }
+
+    async function render() {
+      await loadData();
+      const content = document.getElementById('content');
+      if (currentTab === 'home') {
+        const maxUsers = Math.max(...analytics.dailyUsers);
+        const bars = analytics.dailyUsers.map((count, i) => `
+          <div class="bar" style="height: ${(count / maxUsers) * 100}%">
+            <span class="bar-value">${count}</span>
+            <span class="bar-label">${analytics.days[i]}</span>
+          </div>
+        `).join('');
+
+        content.innerHTML = `
+          <div class="stats">
+            <div class="stat"><div class="stat-num">${analytics.totalViews}</div><div class="stat-label">مشاهدة</div></div>
+            <div class="stat"><div class="stat-num">${analytics.videosWatched}</div><div class="stat-label">فيديو اتشاف</div></div>
+            <div class="stat"><div class="stat-num">${analytics.dailyUsers[analytics.dailyUsers.length - 1]}</div><div class="stat-label">مستخدم اليوم</div></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">المستخدمين في آخر 14 يوم</div>
+            <div class="chart-container">
+              <div class="chart">${bars}</div>
+            </div>
+          </div>
+          <div class="section-header">أكثر الملفات زيارة</div>
+          ${analytics.topFiles.map((f, i) => `
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div class="card-title">${i + 1}. ${f.name}</div>
+                <span class="badge badge-blue">${f.visits}</span>
+              </div>
+            </div>
+          `).join('')}
+          <div class="section-header">آخر الطلبات</div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="card-title">شرح المعادلات من الصفر</div>
+              <span class="badge badge-orange">قيد المراجعة</span>
+            </div>
+            <div class="card-sub">47 طلب</div>
+          </div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="card-title">الجدول الدوري مبسط</div>
+              <span class="badge badge-green">تم النشر</span>
+            </div>
+            <div class="card-sub">32 طلب</div>
+          </div>
+        `;
+      } else if (currentTab === 'files') {
+        if (openedFileId) {
+          const file = files.find(f => f.id === openedFileId);
+          const fileVideos = videos.filter(v => v.fileId == openedFileId);
+          content.innerHTML = `
+            <button class="btn btn-back" onclick="closeFile()">→ رجوع</button>
+            <div class="section-header">${file ? file.name : ''} (${fileVideos.length} فيديو)</div>
+            ${fileVideos.map((v, i) => `
+              <div class="video-row">
+                <div>
+                  <div class="card-title">${v.title}</div>
+                  <div class="card-sub">${v.views || 0} مشاهدة • ${v.duration || '0:00'}</div>
+                </div>
+                <button class="del-btn" onclick="deleteVideoDirect(${v.id}, '${v.title}')">حذف</button>
+              </div>
+            `).join('') || '<div class="card">لا يوجد فيديوهات</div>'}
+            <div class="card" style="flex-direction:column;align-items:stretch">
+              <div class="section-header" style="margin-top:0">إضافة فيديو</div>
+              <input class="input" id="newVideoTitle" placeholder="عنوان الفيديو">
+              <input class="input" id="newVideoUrl" placeholder="رابط الفيديو (mp4)">
+              <button class="btn" onclick="addVideoToFile(${openedFileId})">إضافة</button>
+            </div>
+          `;
+        } else {
+          content.innerHTML = files.map((f, i) => `
+            <div class="file-row" onclick="openFile(${f.id})">
+              <div>
+                <div class="card-title">${f.name}</div>
+                <div class="card-sub">${f.count} فيديو</div>
+              </div>
+              <button class="del-btn" onclick="event.stopPropagation(); confirmDeleteFile(${f.id}, '${f.name}')">حذف</button>
+            </div>
+          `).join('') + `
+            <div class="card" style="flex-direction:column;align-items:stretch">
+              <div class="section-header" style="margin-top:0">إضافة ملف جديد</div>
+              <input class="input" id="newFileName" placeholder="اسم الملف">
+              <button class="btn" onclick="addFile()">إضافة</button>
+            </div>
+          `;
+        }
+      } else if (currentTab === 'videos') {
+        content.innerHTML = `
+          <div class="toolbar">
+            <button class="toolbar-btn ${selectedVideoId ? 'active' : ''}" onclick="openMoveModal()" ${!selectedVideoId ? 'disabled style="opacity:0.4"' : ''}>نقل</button>
+            <button class="toolbar-btn danger" onclick="deleteSelectedVideo()" ${!selectedVideoId ? 'disabled style="opacity:0.4"' : ''}>حذف</button>
+          </div>
+          <div class="card" style="flex-direction:column;align-items:stretch">
+            <div class="section-header" style="margin-top:0">إضافة فيديو جديد</div>
+            <select class="input" id="videoFile">
+              <option value="">اختر الملف</option>
+              ${files.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+            </select>
+            <input class="input" id="newVideoTitle" placeholder="عنوان الفيديو">
+            <input class="input" id="newVideoUrl" placeholder="رابط الفيديو (mp4)">
+            <button class="btn" onclick="addVideo()">إضافة فيديو</button>
+          </div>
+          <div class="section-header">كل الفيديوهات (${videos.length})</div>
+          ${videos.map((v, i) => {
+            const file = files.find(f => f.id == v.fileId);
+            const isSelected = v.id === selectedVideoId;
+            return `
+            <div class="video-row" draggable="true" data-id="${v.id}" data-index="${i}" style="${isSelected ? 'border: 2px solid #2E7D32' : ''}">
+              <div class="drag-handle">☰</div>
+              <div style="flex:1">
+                <div class="card-title">${v.title}</div>
+                <div class="card-sub">${file ? file.name : 'غير محدد'} • ${v.views || 0} مشاهدة • ${v.duration || '0:00'}</div>
+              </div>
+              <button class="del-btn" onclick="selectVideo(${v.id})">${isSelected ? '✓' : '○'}</button>
+            </div>
+          `;
+          }).join('')}
+        `;
+        initDragAndDrop();
+      } else if (currentTab === 'requests') {
+        content.innerHTML = `
+          <div class="section-header">أكثر طلباً</div>
+          ${[
+            { name: 'شرح المعادلات من الصفر', count: 47, status: 'قيد المراجعة', color: 'orange' },
+            { name: 'الجدول الدوري مبسط', count: 32, status: 'تم النشر', color: 'green' },
+            { name: 'قوانين نيوتن', count: 28, status: 'قيد التنفيذ', color: 'blue' },
+            { name: 'الخلية النباتية', count: 19, status: 'قيد المراجعة', color: 'orange' },
+            { name: 'الحروب العالمية', count: 15, status: 'تم النشر', color: 'green' },
+          ].map(r => `
+            <div class="card">
+              <div class="card-title">${r.name}</div>
+              <span class="badge badge-${r.color}">${r.status}</span>
+            </div>
+          `).join('')}
+        `;
+      }
+    }
+
+    function initDragAndDrop() {
+      const cards = document.querySelectorAll('[draggable="true"]');
+      cards.forEach(card => {
+        card.addEventListener('dragstart', () => { dragItem = card; card.style.opacity = '0.5'; });
+        card.addEventListener('dragend', () => { card.style.opacity = '1'; });
+        card.addEventListener('dragover', e => e.preventDefault());
+        card.addEventListener('drop', e => {
+          e.preventDefault();
+          if (dragItem && dragItem !== card) {
+            const parent = card.parentNode;
+            const cards = [...parent.querySelectorAll('[draggable="true"]')];
+            const fromIdx = cards.indexOf(dragItem);
+            const toIdx = cards.indexOf(card);
+            if (fromIdx < toIdx) {
+              parent.insertBefore(dragItem, card.nextSibling);
+            } else {
+              parent.insertBefore(dragItem, card);
+            }
+            showToast('تم تحديث الترتيب');
+          }
+        });
+      });
+    }
+
+    function selectVideo(id) {
+      selectedVideoId = selectedVideoId === id ? null : id;
+      render();
+    }
+
+    function openMoveModal() {
+      if (!selectedVideoId) return;
+      const select = document.getElementById('moveTarget');
+      select.innerHTML = '<option value="">اختر الملف</option>' + files.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+      document.getElementById('moveModal').style.display = 'flex';
+    }
+
+    function closeMoveModal() {
+      document.getElementById('moveModal').style.display = 'none';
+    }
+
+    async function confirmMoveVideo() {
+      const targetFileId = document.getElementById('moveTarget').value;
+      if (!targetFileId) { showToast('اختر ملف'); return; }
+      await fetch('/api/videos/' + selectedVideoId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId: targetFileId })
+      });
+      showToast('تم النقل');
+      closeMoveModal();
+      selectedVideoId = null;
+      render();
+    }
+
+    async function deleteSelectedVideo() {
+      if (!selectedVideoId) return;
+      const v = videos.find(v => v.id === selectedVideoId);
+      if (confirm(`هل أنت متأكد من حذف "${v?.title}"؟`)) {
+        await fetch('/api/videos/' + selectedVideoId, { method: 'DELETE' });
+        showToast('تم الحذف');
+        selectedVideoId = null;
+        render();
+      }
+    }
+
+    function confirmDeleteFile(id, name) {
+      if (confirm(`هل أنت متأكد من حذف "${name}"؟`)) {
+        fetch('/api/files/' + id, { method: 'DELETE' }).then(() => { showToast('تم الحذف'); render(); });
+      }
+    }
+
+    function deleteVideoDirect(id, title) {
+      if (confirm(`حذف "${title}"؟`)) {
+        fetch('/api/videos/' + id, { method: 'DELETE' }).then(() => { showToast('تم الحذف'); render(); });
+      }
+    }
+
+    async function addFile() {
+      const name = document.getElementById('newFileName').value;
+      if (!name) return;
+      await fetch('/api/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, count: 0 }) });
+      showToast('تمت الإضافة');
+      render();
+    }
+
+    async function addVideo() {
+      const title = document.getElementById('newVideoTitle').value;
+      const url = document.getElementById('newVideoUrl').value;
+      const fileId = document.getElementById('videoFile').value;
+      if (!title || !url || !fileId) { showToast('املأ كل الحقول'); return; }
+      await fetch('/api/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, url, fileId, views: 0, duration: '0:00' }) });
+      showToast('تمت الإضافة');
+      render();
+    }
+
+    async function addVideoToFile(fileId) {
+      const title = document.getElementById('newVideoTitle').value;
+      const url = document.getElementById('newVideoUrl').value;
+      if (!title || !url) { showToast('املأ كل الحقول'); return; }
+      await fetch('/api/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, url, fileId, views: 0, duration: '0:00' }) });
+      showToast('تمت الإضافة');
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>
