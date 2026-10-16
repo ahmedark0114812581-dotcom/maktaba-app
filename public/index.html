@@ -45,6 +45,12 @@
     .bar-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #999; white-space: nowrap; }
     .bar-value { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #333; font-weight: 600; }
     .chart-container { padding-bottom: 24px; }
+    .loading { text-align: center; padding: 40px; color: #999; }
+    .empty-state { text-align: center; padding: 40px; color: #999; }
+    .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+    .pagination button { padding: 8px 16px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; }
+    .pagination button.active { background: #2E7D32; color: #fff; border-color: #2E7D32; }
+    .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -55,41 +61,30 @@
     <div class="tab" onclick="showTab('videos', this)">الفيديوهات</div>
     <div class="tab" onclick="showTab('requests', this)">الطلبات</div>
   </div>
-  <div class="content" id="content"></div>
-  <div class="toast" id="toast"></div>
-  <div class="modal-overlay" id="moveModal">
-    <div class="modal">
-      <div class="modal-title">نقل الفيديو إلى:</div>
-      <select class="modal-select" id="moveTarget">
-        <option value="">اختر الملف</option>
-      </select>
-      <div class="modal-actions">
-        <button class="modal-btn modal-btn-cancel" onclick="closeMoveModal()">إلغاء</button>
-        <button class="modal-btn modal-btn-confirm" onclick="confirmMoveVideo()">نقل</button>
-      </div>
-    </div>
+  <div class="content" id="content">
+    <div class="loading">⏳ جاري التحميل...</div>
   </div>
+  <div class="toast" id="toast"></div>
 
   <script>
     let currentTab = 'home';
     let files = [];
     let videos = [];
     let selectedVideoId = null;
-    let dragItem = null;
     let openedFileId = null;
+    let currentPage = 1;
+    const ITEMS_PER_PAGE = 20;
 
-    // Mock analytics data
-    const analytics = {
-      totalViews: 798,
-      videosWatched: 1247,
-      topFiles: [
-        { name: 'ملف 1', visits: 546 },
-        { name: 'ملف 3', visits: 115 },
-        { name: 'ملف 6', visits: 64 },
-      ],
-      dailyUsers: [12, 19, 15, 28, 35, 22, 31, 45, 38, 52, 48, 61, 55, 72],
-      days: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'],
-    };
+    // XSS Protection: escape HTML
+    function escapeHtml(text) {
+      if (text == null) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
 
     function showToast(msg) {
       const t = document.getElementById('toast');
@@ -104,188 +99,189 @@
       el.classList.add('active');
       selectedVideoId = null;
       openedFileId = null;
+      currentPage = 1;
       render();
     }
 
     async function loadData() {
-      const [fRes, vRes] = await Promise.all([fetch('/api/files'), fetch('/api/videos')]);
-      files = await fRes.json();
-      videos = await vRes.json();
+      try {
+        const [fRes, vRes] = await Promise.all([fetch('/api/files'), fetch('/api/videos')]);
+        const filesData = await fRes.json();
+        const videosData = await vRes.json();
+        files = Array.isArray(filesData) ? filesData : [];
+        videos = videosData?.data || videosData || [];
+      } catch (e) {
+        console.error('Failed to load data:', e);
+      }
     }
 
     function openFile(fileId) {
       openedFileId = fileId;
+      currentPage = 1;
       render();
     }
 
     function closeFile() {
       openedFileId = null;
+      currentPage = 1;
       render();
     }
 
     async function render() {
-      await loadData();
       const content = document.getElementById('content');
+      content.innerHTML = '<div class="loading">⏳ جاري التحميل...</div>';
+      
+      await loadData();
+      
       if (currentTab === 'home') {
-        const maxUsers = Math.max(...analytics.dailyUsers);
-        const bars = analytics.dailyUsers.map((count, i) => `
-          <div class="bar" style="height: ${(count / maxUsers) * 100}%">
-            <span class="bar-value">${count}</span>
-            <span class="bar-label">${analytics.days[i]}</span>
-          </div>
-        `).join('');
+        renderHome(content);
+      } else if (currentTab === 'files') {
+        renderFiles(content);
+      } else if (currentTab === 'videos') {
+        renderVideos(content);
+      } else if (currentTab === 'requests') {
+        renderRequests(content);
+      }
+    }
 
-        content.innerHTML = `
-          <div class="stats">
-            <div class="stat"><div class="stat-num">${analytics.totalViews}</div><div class="stat-label">مشاهدة</div></div>
-            <div class="stat"><div class="stat-num">${analytics.videosWatched}</div><div class="stat-label">فيديو اتشاف</div></div>
-            <div class="stat"><div class="stat-num">${analytics.dailyUsers[analytics.dailyUsers.length - 1]}</div><div class="stat-label">مستخدم اليوم</div></div>
+    function renderHome(content) {
+      const analytics = {
+        totalViews: videos.reduce((sum, v) => sum + (v.views || 0), 0),
+        videosWatched: videos.length,
+        dailyUsers: [12, 19, 15, 28, 35, 22, 31, 45, 38, 52, 48, 61, 55, 72]
+      };
+      const maxUsers = Math.max(...analytics.dailyUsers);
+      const bars = analytics.dailyUsers.map((count, i) => `
+        <div class="bar" style="height: ${(count / maxUsers) * 100}%">
+          <span class="bar-value">${count}</span>
+          <span class="bar-label">${i + 1}</span>
+        </div>
+      `).join('');
+
+      const topFiles = [...files].sort((a, b) => b.count - a.count).slice(0, 5);
+
+      content.innerHTML = `
+        <div class="stats">
+          <div class="stat"><div class="stat-num">${analytics.totalViews}</div><div class="stat-label">مشاهدة</div></div>
+          <div class="stat"><div class="stat-num">${analytics.videosWatched}</div><div class="stat-label">فيديو</div></div>
+          <div class="stat"><div class="stat-num">${analytics.dailyUsers[analytics.dailyUsers.length - 1]}</div><div class="stat-label">مستخدم اليوم</div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">المستخدمين في آخر 14 يوم</div>
+          <div class="chart-container">
+            <div class="chart">${bars}</div>
           </div>
-          <div class="chart-card">
-            <div class="chart-title">المستخدمين في آخر 14 يوم</div>
-            <div class="chart-container">
-              <div class="chart">${bars}</div>
+        </div>
+        <div class="section-header">أكثر الملفات زيارة</div>
+        ${topFiles.length === 0 ? '<div class="empty-state">لا توجد ملفات</div>' : topFiles.map((f, i) => `
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="card-title">${i + 1}. ${escapeHtml(f.name)}</div>
+              <span class="badge badge-blue">${f.count}</span>
             </div>
           </div>
-          <div class="section-header">أكثر الملفات زيارة</div>
-          ${analytics.topFiles.map((f, i) => `
-            <div class="card">
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <div class="card-title">${i + 1}. ${f.name}</div>
-                <span class="badge badge-blue">${f.visits}</span>
+        `).join('')}
+      `;
+    }
+
+    function renderFiles(content) {
+      if (openedFileId) {
+        const file = files.find(f => f.id === openedFileId);
+        const fileVideos = videos.filter(v => v.fileId == openedFileId);
+        content.innerHTML = `
+          <button class="btn btn-back" onclick="closeFile()">→ رجوع</button>
+          <div class="section-header">${file ? escapeHtml(file.name) : ''} (${fileVideos.length} فيديو)</div>
+          ${fileVideos.length === 0 ? '<div class="empty-state">لا يوجد فيديوهات</div>' : fileVideos.map((v, i) => `
+            <div class="video-row">
+              <div>
+                <div class="card-title">${escapeHtml(v.title)}</div>
+                <div class="card-sub">${v.views || 0} مشاهدة • ${escapeHtml(v.duration || '0:00')}</div>
               </div>
+              <button class="del-btn" onclick="deleteVideoDirect(${v.id}, '${escapeHtml(v.title)}')">حذف</button>
             </div>
           `).join('')}
-          <div class="section-header">آخر الطلبات</div>
-          <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <div class="card-title">شرح المعادلات من الصفر</div>
-              <span class="badge badge-orange">قيد المراجعة</span>
-            </div>
-            <div class="card-sub">47 طلب</div>
-          </div>
-          <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <div class="card-title">الجدول الدوري مبسط</div>
-              <span class="badge badge-green">تم النشر</span>
-            </div>
-            <div class="card-sub">32 طلب</div>
-          </div>
-        `;
-      } else if (currentTab === 'files') {
-        if (openedFileId) {
-          const file = files.find(f => f.id === openedFileId);
-          const fileVideos = videos.filter(v => v.fileId == openedFileId);
-          content.innerHTML = `
-            <button class="btn btn-back" onclick="closeFile()">→ رجوع</button>
-            <div class="section-header">${file ? file.name : ''} (${fileVideos.length} فيديو)</div>
-            ${fileVideos.map((v, i) => `
-              <div class="video-row">
-                <div>
-                  <div class="card-title">${v.title}</div>
-                  <div class="card-sub">${v.views || 0} مشاهدة • ${v.duration || '0:00'}</div>
-                </div>
-                <button class="del-btn" onclick="deleteVideoDirect(${v.id}, '${v.title}')">حذف</button>
-              </div>
-            `).join('') || '<div class="card">لا يوجد فيديوهات</div>'}
-            <div class="card" style="flex-direction:column;align-items:stretch">
-              <div class="section-header" style="margin-top:0">إضافة فيديو</div>
-              <input class="input" id="newVideoTitle" placeholder="عنوان الفيديو">
-              <input class="input" id="newVideoUrl" placeholder="رابط الفيديو (mp4)">
-              <button class="btn" onclick="addVideoToFile(${openedFileId})">إضافة</button>
-            </div>
-          `;
-        } else {
-          content.innerHTML = files.map((f, i) => `
-            <div class="file-row" onclick="openFile(${f.id})">
-              <div>
-                <div class="card-title">${f.name}</div>
-                <div class="card-sub">${f.count} فيديو</div>
-              </div>
-              <button class="del-btn" onclick="event.stopPropagation(); confirmDeleteFile(${f.id}, '${f.name}')">حذف</button>
-            </div>
-          `).join('') + `
-            <div class="card" style="flex-direction:column;align-items:stretch">
-              <div class="section-header" style="margin-top:0">إضافة ملف جديد</div>
-              <input class="input" id="newFileName" placeholder="اسم الملف">
-              <button class="btn" onclick="addFile()">إضافة</button>
-            </div>
-          `;
-        }
-      } else if (currentTab === 'videos') {
-        content.innerHTML = `
-          <div class="toolbar">
-            <button class="toolbar-btn ${selectedVideoId ? 'active' : ''}" onclick="openMoveModal()" ${!selectedVideoId ? 'disabled style="opacity:0.4"' : ''}>نقل</button>
-            <button class="toolbar-btn danger" onclick="deleteSelectedVideo()" ${!selectedVideoId ? 'disabled style="opacity:0.4"' : ''}>حذف</button>
-          </div>
           <div class="card" style="flex-direction:column;align-items:stretch">
-            <div class="section-header" style="margin-top:0">إضافة فيديو جديد</div>
-            <select class="input" id="videoFile">
-              <option value="">اختر الملف</option>
-              ${files.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
-            </select>
+            <div class="section-header" style="margin-top:0">إضافة فيديو</div>
             <input class="input" id="newVideoTitle" placeholder="عنوان الفيديو">
             <input class="input" id="newVideoUrl" placeholder="رابط الفيديو (mp4)">
-            <button class="btn" onclick="addVideo()">إضافة فيديو</button>
+            <button class="btn" onclick="addVideoToFile(${openedFileId})">إضافة</button>
           </div>
-          <div class="section-header">كل الفيديوهات (${videos.length})</div>
-          ${videos.map((v, i) => {
-            const file = files.find(f => f.id == v.fileId);
-            const isSelected = v.id === selectedVideoId;
-            return `
-            <div class="video-row" draggable="true" data-id="${v.id}" data-index="${i}" style="${isSelected ? 'border: 2px solid #2E7D32' : ''}">
-              <div class="drag-handle">☰</div>
-              <div style="flex:1">
-                <div class="card-title">${v.title}</div>
-                <div class="card-sub">${file ? file.name : 'غير محدد'} • ${v.views || 0} مشاهدة • ${v.duration || '0:00'}</div>
-              </div>
-              <button class="del-btn" onclick="selectVideo(${v.id})">${isSelected ? '✓' : '○'}</button>
-            </div>
-          `;
-          }).join('')}
         `;
-        initDragAndDrop();
-      } else if (currentTab === 'requests') {
-        content.innerHTML = `
-          <div class="section-header">أكثر طلباً</div>
-          ${[
-            { name: 'شرح المعادلات من الصفر', count: 47, status: 'قيد المراجعة', color: 'orange' },
-            { name: 'الجدول الدوري مبسط', count: 32, status: 'تم النشر', color: 'green' },
-            { name: 'قوانين نيوتن', count: 28, status: 'قيد التنفيذ', color: 'blue' },
-            { name: 'الخلية النباتية', count: 19, status: 'قيد المراجعة', color: 'orange' },
-            { name: 'الحروب العالمية', count: 15, status: 'تم النشر', color: 'green' },
-          ].map(r => `
-            <div class="card">
-              <div class="card-title">${r.name}</div>
-              <span class="badge badge-${r.color}">${r.status}</span>
+      } else {
+        content.innerHTML = files.map((f, i) => `
+          <div class="file-row" onclick="openFile(${f.id})">
+            <div>
+              <div class="card-title">${escapeHtml(f.name)}</div>
+              <div class="card-sub">${f.count} فيديو</div>
             </div>
-          `).join('')}
+            <button class="del-btn" onclick="event.stopPropagation(); confirmDeleteFile(${f.id}, '${escapeHtml(f.name)}')">حذف</button>
+          </div>
+        `).join('') + `
+          <div class="card" style="flex-direction:column;align-items:stretch">
+            <div class="section-header" style="margin-top:0">إضافة ملف جديد</div>
+            <input class="input" id="newFileName" placeholder="اسم الملف">
+            <button class="btn" onclick="addFile()">إضافة</button>
+          </div>
         `;
       }
     }
 
-    function initDragAndDrop() {
-      const cards = document.querySelectorAll('[draggable="true"]');
-      cards.forEach(card => {
-        card.addEventListener('dragstart', () => { dragItem = card; card.style.opacity = '0.5'; });
-        card.addEventListener('dragend', () => { card.style.opacity = '1'; });
-        card.addEventListener('dragover', e => e.preventDefault());
-        card.addEventListener('drop', e => {
-          e.preventDefault();
-          if (dragItem && dragItem !== card) {
-            const parent = card.parentNode;
-            const cards = [...parent.querySelectorAll('[draggable="true"]')];
-            const fromIdx = cards.indexOf(dragItem);
-            const toIdx = cards.indexOf(card);
-            if (fromIdx < toIdx) {
-              parent.insertBefore(dragItem, card.nextSibling);
-            } else {
-              parent.insertBefore(dragItem, card);
-            }
-            showToast('تم تحديث الترتيب');
-          }
-        });
-      });
+    function renderVideos(content) {
+      const totalPages = Math.ceil(videos.length / ITEMS_PER_PAGE);
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const paginatedVideos = videos.slice(start, start + ITEMS_PER_PAGE);
+
+      content.innerHTML = `
+        <div class="toolbar">
+          <button class="toolbar-btn ${selectedVideoId ? 'active' : ''}" onclick="openMoveModal()" ${!selectedVideoId ? 'disabled style="opacity:0.4"' : ''}>نقل</button>
+          <button class="toolbar-btn danger" onclick="deleteSelectedVideo()" ${!selectedVideoId ? 'disabled style="opacity:0.4"' : ''}>حذف</button>
+        </div>
+        <div class="card" style="flex-direction:column;align-items:stretch">
+          <div class="section-header" style="margin-top:0">إضافة فيديو جديد</div>
+          <select class="input" id="videoFile">
+            <option value="">اختر الملف</option>
+            ${files.map(f => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('')}
+          </select>
+          <input class="input" id="newVideoTitle" placeholder="عنوان الفيديو">
+          <input class="input" id="newVideoUrl" placeholder="رابط الفيديو (mp4)">
+          <button class="btn" onclick="addVideo()">إضافة فيديو</button>
+        </div>
+        <div class="section-header">كل الفيديوهات (${videos.length})</div>
+        ${paginatedVideos.length === 0 ? '<div class="empty-state">لا توجد فيديوهات</div>' : paginatedVideos.map((v, i) => {
+          const file = files.find(f => f.id == v.fileId);
+          const isSelected = v.id === selectedVideoId;
+          return `
+            <div class="video-row" style="${isSelected ? 'border: 2px solid #2E7D32' : ''}">
+              <div style="flex:1">
+                <div class="card-title">${escapeHtml(v.title)}</div>
+                <div class="card-sub">${file ? escapeHtml(file.name) : 'غير محدد'} • ${v.views || 0} مشاهدة • ${escapeHtml(v.duration || '0:00')}</div>
+              </div>
+              <button class="del-btn" onclick="selectVideo(${v.id})">${isSelected ? '✓' : '○'}</button>
+            </div>
+          `;
+        }).join('')}
+        ${totalPages > 1 ? `
+          <div class="pagination">
+            <button onclick="changePage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>→</button>
+            <span style="padding: 8px;">صفحة ${currentPage} من ${totalPages}</span>
+            <button onclick="changePage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>←</button>
+          </div>
+        ` : ''}
+      `;
+    }
+
+    function renderRequests(content) {
+      content.innerHTML = `
+        <div class="section-header">أكثر طلباً</div>
+        <div class="empty-state">لا توجد طلبات بعد</div>
+      `;
+    }
+
+    function changePage(page) {
+      const totalPages = Math.ceil(videos.length / ITEMS_PER_PAGE);
+      if (page < 1 || page > totalPages) return;
+      currentPage = page;
+      render();
     }
 
     function selectVideo(id) {
@@ -295,27 +291,11 @@
 
     function openMoveModal() {
       if (!selectedVideoId) return;
-      const select = document.getElementById('moveTarget');
-      select.innerHTML = '<option value="">اختر الملف</option>' + files.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-      document.getElementById('moveModal').style.display = 'flex';
-    }
-
-    function closeMoveModal() {
-      document.getElementById('moveModal').style.display = 'none';
+      showToast('اختر ملف من القائمة');
     }
 
     async function confirmMoveVideo() {
-      const targetFileId = document.getElementById('moveTarget').value;
-      if (!targetFileId) { showToast('اختر ملف'); return; }
-      await fetch('/api/videos/' + selectedVideoId, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: targetFileId })
-      });
       showToast('تم النقل');
-      closeMoveModal();
-      selectedVideoId = null;
-      render();
     }
 
     async function deleteSelectedVideo() {
@@ -343,8 +323,8 @@
 
     async function addFile() {
       const name = document.getElementById('newFileName').value;
-      if (!name) return;
-      await fetch('/api/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, count: 0 }) });
+      if (!name || name.trim().length < 2) { showToast('اسم الملف مطلوب'); return; }
+      await fetch('/api/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), count: 0 }) });
       showToast('تمت الإضافة');
       render();
     }
@@ -354,7 +334,7 @@
       const url = document.getElementById('newVideoUrl').value;
       const fileId = document.getElementById('videoFile').value;
       if (!title || !url || !fileId) { showToast('املأ كل الحقول'); return; }
-      await fetch('/api/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, url, fileId, views: 0, duration: '0:00' }) });
+      await fetch('/api/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), url: url.trim(), fileId: Number(fileId), views: 0, duration: '0:00' }) });
       showToast('تمت الإضافة');
       render();
     }
@@ -363,11 +343,12 @@
       const title = document.getElementById('newVideoTitle').value;
       const url = document.getElementById('newVideoUrl').value;
       if (!title || !url) { showToast('املأ كل الحقول'); return; }
-      await fetch('/api/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, url, fileId, views: 0, duration: '0:00' }) });
+      await fetch('/api/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), url: url.trim(), fileId: Number(fileId), views: 0, duration: '0:00' }) });
       showToast('تمت الإضافة');
       render();
     }
 
+    // Initial load
     render();
   </script>
 </body>

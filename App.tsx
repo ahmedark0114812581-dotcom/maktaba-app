@@ -15,7 +15,6 @@ import { Video, ResizeMode } from 'expo-av';
 
 const screenWidth = Dimensions.get('window').width;
 
-// Snake segments arranged in a circle around Y
 const SNAKE_SEGMENTS = Array.from({ length: 12 }, (_, i) => {
   const angle = (i / 12) * Math.PI * 2;
   return {
@@ -69,63 +68,49 @@ function SnakeLogo({ size = 160, color = '#2E7D32', bgColor = '#fff', spinning =
   );
 }
 
-const videos = [
-  { id: 1, title: 'فيديو 1', views: '546', duration: '15:30', isVertical: false, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
-  { id: 2, title: 'فيديو 2', views: '8', duration: '12:45', isVertical: false, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4' },
-  { id: 3, title: 'فيديو 3', views: '115', duration: '18:20', isVertical: false, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' },
-  { id: 4, title: 'فيديو 4', views: '38', duration: '10:15', isVertical: true, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4' },
-  { id: 5, title: 'فيديو 5', views: '27', duration: '14:00', isVertical: true, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4' },
-  { id: 6, title: 'فيديو 6', views: '64', duration: '9:30', isVertical: true, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4' },
-];
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
-const filterTabs = ['الكل', 'الأكثر مشاهدة', 'الأحدث'];
-
-const files = [
-  { id: 1, name: 'ملف 1', count: 546 },
-  { id: 2, name: 'ملف 2', count: 8 },
-  { id: 3, name: 'ملف 3', count: 115 },
-  { id: 4, name: 'ملف 4', count: 38 },
-  { id: 5, name: 'ملف 5', count: 27 },
-  { id: 6, name: 'ملف 6', count: 64 },
-];
-
-const bottomTabs = [
-  { id: 'home', label: 'الرئيسية', icon: '🏠' },
-  { id: 'requests', label: 'طلباتكم', icon: '📩' },
-  { id: 'more', label: 'المزيد', icon: '☰' },
-];
-
-const myRequests = [
-  { id: 1, text: 'طلب 1', status: 'قيد المراجعة', date: '2026-10-14' },
-  { id: 2, text: 'طلب 2', status: 'تم النشر', date: '2026-10-10' },
-  { id: 3, text: 'طلب 3', status: 'قيد التنفيذ', date: '2026-10-08' },
-];
-
-const topRequests = [
-  { id: 1, text: 'طلب 1', count: 47 },
-  { id: 2, text: 'طلب 2', count: 32 },
-  { id: 3, text: 'طلب 3', count: 28 },
-  { id: 4, text: 'طلب 4', count: 19 },
-  { id: 5, text: 'طلب 5', count: 15 },
-];
-
-export default function App() {
+function App() {
+  const [serverFiles, setServerFiles] = useState([]);
+  const [serverVideos, setServerVideos] = useState([]);
+  const [serverStatus, setServerStatus] = useState('loading');
   const [activeTab, setActiveTab] = useState('home');
   const [activeFilter, setActiveFilter] = useState(0);
-
-  const [selectedFile, setSelectedFile] = useState<number | null>(null);
-  const [selectedVideo, setSelectedVideo] = useState<number | null>(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isLandscape, setIsLandscape] = useState(false);
-  const videoRef = useRef<Video>(null);
+  const videoRef = useRef(null);
   const [showMore, setShowMore] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'premium'>('light');
+  const [theme, setTheme] = useState('light');
   const [splashVisible, setSplashVisible] = useState(true);
   const [videoBuffering, setVideoBuffering] = useState(false);
+  const [requestText, setRequestText] = useState('');
+  const [requestSubmitted, setRequestSubmitted] = useState(false);
+
+  async function fetchData() {
+    try {
+      const [fRes, vRes] = await Promise.all([
+        fetch(`${API_URL}/api/files`),
+        fetch(`${API_URL}/api/videos`),
+      ]);
+      const filesData = await fRes.json();
+      const videosData = await vRes.json();
+      setServerFiles(Array.isArray(filesData) ? filesData : []);
+      setServerVideos(videosData?.data || videosData || []);
+      setServerStatus('connected');
+    } catch (e) {
+      setServerStatus('offline');
+    }
+  }
 
   useEffect(() => {
-    const timer = setTimeout(() => setSplashVisible(false), 30000);
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashVisible(false), 3000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -136,12 +121,31 @@ export default function App() {
   };
 
   const t = themes[theme];
+  const displayVideos = serverVideos.length > 0 ? serverVideos : [];
+  const displayFiles = serverFiles.length > 0 ? serverFiles : [];
+
+  const handleSubmitRequest = async () => {
+    if (requestText.trim().length >= 3) {
+      try {
+        await fetch(`${API_URL}/api/requests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: requestText.trim() }),
+        });
+        setRequestSubmitted(true);
+        setRequestText('');
+        setTimeout(() => setRequestSubmitted(false), 2000);
+      } catch (e) {
+        // silent fail
+      }
+    }
+  };
 
   const renderHome = () => {
     if (selectedVideo) return renderPlayer();
 
     if (selectedFile) {
-      const fileVideos = videos.filter((v) => v.id <= selectedFile);
+      const fileVideos = displayVideos.filter((v) => v.fileId === selectedFile);
       return (
         <View style={[styles.screen, { backgroundColor: t.bg }]}>
           <View style={styles.fileHeader}>
@@ -150,29 +154,35 @@ export default function App() {
             </TouchableOpacity>
             <Text style={[styles.pageTitle, { color: t.text }]}>ملف {selectedFile}</Text>
           </View>
-          <FlatList
-            data={fileVideos}
-            numColumns={2}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.videosGrid}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.videoCard} onPress={() => setSelectedVideo(item.id)}>
-                <View style={styles.videoThumb}>
-                  <Text style={styles.videoPlayIcon}>▶️</Text>
-                  <Text style={styles.videoDuration}>{item.duration}</Text>
-                </View>
-                <Text style={[styles.videoTitle, { color: t.text }]}>{item.title}</Text>
-                <Text style={styles.videoViews}>{item.views} مشاهدة</Text>
-              </TouchableOpacity>
-            )}
-          />
+          {fileVideos.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={{ fontSize: 48 }}>📭</Text>
+              <Text style={{ color: t.text, marginTop: 8 }}>لا يوجد فيديوهات في هذا الملف</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={fileVideos}
+              numColumns={2}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={styles.videosGrid}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.videoCard} onPress={() => setSelectedVideo(item.id)}>
+                  <View style={styles.videoThumb}>
+                    <Text style={styles.videoPlayIcon}>▶️</Text>
+                    <Text style={styles.videoDuration}>{item.duration}</Text>
+                  </View>
+                  <Text style={[styles.videoTitle, { color: t.text }]}>{item.title}</Text>
+                  <Text style={styles.videoViews}>{item.views} مشاهدة</Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
         </View>
       );
     }
 
     return (
       <View style={[styles.screen, { backgroundColor: t.bg }]}>
-        {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={[styles.avatar, { backgroundColor: t.card }]}>
             <Text style={styles.avatarText}>👤</Text>
@@ -180,111 +190,106 @@ export default function App() {
           <Text style={[styles.profileName, { color: t.text }]}>المكتبة</Text>
         </View>
 
-        {/* Subscription Banner */}
-        <View style={[styles.banner, { backgroundColor: t.banner[0] }]}>
+        <TouchableOpacity onPress={() => setActiveTab('subscription')} style={[styles.banner, { backgroundColor: t.banner[0] }]}>
           <View style={styles.bannerContent}>
             <Text style={[styles.bannerTitle, { color: t.title }]}>انضم لاشتراك المكتبة!</Text>
             <Text style={[styles.bannerSub, { color: t.sub }]}>بدون إعلانات • مشاهدة أسرع</Text>
           </View>
-          <TouchableOpacity style={[styles.bannerBtn, { backgroundColor: t.btn[0] }]}>
+          <View style={[styles.bannerBtn, { backgroundColor: t.btn }]}>
             <Text style={[styles.bannerBtnText, { color: t.btnText }]}>ترقية</Text>
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={files}
-          numColumns={2}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.filesGrid}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.fileCard} onPress={() => setSelectedFile(item.id)}>
-              <View style={styles.fileThumb}>
-                <Text style={styles.fileIcon}>📁</Text>
-              </View>
-              <Text style={[styles.fileName, { color: t.text }]}>{item.name}</Text>
-              <Text style={styles.fileCount}>{item.count} فيديو</Text>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-    );
-  };
+          </View>
+        </TouchableOpacity>
 
-  const renderRequests = () => {
-    const [requestText, setRequestText] = useState('');
-    const [submitted, setSubmitted] = useState(false);
-
-    const handleSubmit = () => {
-      if (requestText.trim().length >= 3) {
-        setSubmitted(true);
-        setRequestText('');
-        setTimeout(() => setSubmitted(false), 2000);
-      }
-    };
-
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.pageTitle}>طلباتكم</Text>
-        
-        <View style={styles.requestInputContainer}>
-          <Text style={styles.requestPlaceholder}>اكتب الفيديو اللي عايزه...</Text>
-          <TouchableOpacity
-            style={[styles.submitBtn, requestText.trim().length < 3 && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-          >
-            <Text style={styles.submitBtnText}>إرسال</Text>
-          </TouchableOpacity>
-        </View>
-
-        {submitted && (
-          <View style={styles.successMsg}>
-            <Text style={styles.successText}>✅ تم إرسال طلبك</Text>
+        {serverStatus === 'loading' && (
+          <View style={styles.loadingState}>
+            <Text>⏳</Text>
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>طلباتي</Text>
-        {myRequests.map((req) => (
-          <View key={req.id} style={styles.requestCard}>
-            <Text style={styles.requestText}>{req.text}</Text>
-            <View style={styles.requestMeta}>
-              <Text style={[styles.requestStatus, req.status === 'تم النشر' && styles.statusPublished]}>
-                {req.status}
-              </Text>
-              <Text style={styles.requestDate}>{req.date}</Text>
-            </View>
+        {serverStatus === 'offline' && (
+          <View style={styles.offlineBanner}>
+            <Text style={{ color: '#fff', fontSize: 13 }}>⚠️ غير متصل بالسيرفر — يتم عرض بيانات محلية</Text>
           </View>
-        ))}
+        )}
 
-        <Text style={styles.sectionTitle}>الأكثر طلباً</Text>
-        {topRequests.map((req, index) => (
-          <View key={req.id} style={styles.topRequestCard}>
-            <Text style={styles.topRequestRank}>{index + 1}</Text>
-            <Text style={styles.topRequestText}>{req.text}</Text>
-            <Text style={styles.topRequestCount}>{req.count} طلب</Text>
+        {displayFiles.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={{ fontSize: 48 }}>📂</Text>
+            <Text style={{ color: t.text, marginTop: 8 }}>لا توجد ملفات بعد</Text>
           </View>
-        ))}
+        ) : (
+          <FlatList
+            data={displayFiles}
+            numColumns={2}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.filesGrid}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.fileCard} onPress={() => setSelectedFile(item.id)}>
+                <View style={styles.fileThumb}>
+                  <Text style={styles.fileIcon}>📁</Text>
+                </View>
+                <Text style={[styles.fileName, { color: t.text }]}>{item.name}</Text>
+                <Text style={styles.fileCount}>{item.count} فيديو</Text>
+              </TouchableOpacity>
+            )}
+          />
+        )}
       </View>
     );
   };
 
-  const renderFiles = () => (
+  const renderRequests = () => (
     <View style={styles.screen}>
-      <Text style={styles.pageTitle}>الملفات</Text>
-      <View style={styles.filesGrid}>
-        {files.map((file) => (
-          <TouchableOpacity key={file.id} style={styles.fileCard}>
-            <View style={styles.fileThumb}>
-              <Text style={styles.fileIcon}>📁</Text>
-            </View>
-            <Text style={styles.fileName}>{file.name}</Text>
-            <Text style={styles.fileCount}>{file.count} فيديو</Text>
-          </TouchableOpacity>
-        ))}
+      <Text style={styles.pageTitle}>طلباتكم</Text>
+
+      <View style={styles.requestInputContainer}>
+        <TextInput
+          style={styles.requestInput}
+          placeholder="اكتب الفيديو اللي عايزه..."
+          value={requestText}
+          onChangeText={setRequestText}
+          multiline
+        />
+        <TouchableOpacity
+          style={[styles.submitBtn, requestText.trim().length < 3 && styles.submitBtnDisabled]}
+          onPress={handleSubmitRequest}
+        >
+          <Text style={styles.submitBtnText}>إرسال</Text>
+        </TouchableOpacity>
       </View>
+
+      {requestSubmitted && (
+        <View style={styles.successMsg}>
+          <Text style={styles.successText}>✅ تم إرسال طلبك</Text>
+        </View>
+      )}
+
+      <Text style={styles.sectionTitle}>طلباتي</Text>
+      {[].map((req) => (
+        <View key={req.id} style={styles.requestCard}>
+          <Text style={styles.requestText}>{req.text}</Text>
+          <View style={styles.requestMeta}>
+            <Text style={[styles.requestStatus, req.status === 'تم النشر' && styles.statusPublished]}>
+              {req.status}
+            </Text>
+            <Text style={styles.requestDate}>{req.date}</Text>
+          </View>
+        </View>
+      ))}
+
+      <Text style={styles.sectionTitle}>الأكثر طلباً</Text>
+      {[].map((req, index) => (
+        <View key={req.id} style={styles.topRequestCard}>
+          <Text style={styles.topRequestRank}>{index + 1}</Text>
+          <Text style={styles.topRequestText}>{req.text}</Text>
+          <Text style={styles.topRequestCount}>{req.count} طلب</Text>
+        </View>
+      ))}
     </View>
   );
 
   const lastTap = useRef(0);
-  const wakeLockRef = useRef<any>(null);
+  const wakeLockRef = useRef(null);
 
   const requestWakeLock = async () => {
     try {
@@ -310,27 +315,12 @@ export default function App() {
     return () => releaseWakeLock();
   }, [selectedVideo]);
 
-  useEffect(() => {
-    if (progress >= 100 && selectedVideo !== null) {
-      const currentIndex = videos.findIndex((v) => v.id === selectedVideo);
-      if (currentIndex < videos.length - 1) {
-        setSelectedVideo(videos[currentIndex + 1].id);
-        setProgress(0);
-        setIsPlaying(true);
-      } else {
-        setIsPlaying(false);
-        setProgress(100);
-      }
-    }
-  }, [progress, selectedVideo, videos]);
-
-  const handleScreenTap = (evt: any) => {
+  const handleScreenTap = (evt) => {
     const now = Date.now();
     const { locationX } = evt.nativeEvent;
     const screenWidth = 375;
 
     if (now - lastTap.current < 300) {
-      // Double tap
       if (locationX > screenWidth / 2) {
         setProgress((p) => Math.min(100, p + 10));
         videoRef.current?.setPositionAsync((progress / 100) * 15000);
@@ -350,7 +340,7 @@ export default function App() {
     }
   };
 
-  const onPlaybackStatusUpdate = (status: any) => {
+  const onPlaybackStatusUpdate = (status) => {
     if (status.isLoaded) {
       setVideoBuffering(status.isBuffering || false);
       const duration = status.durationMillis || 0;
@@ -359,9 +349,9 @@ export default function App() {
         setProgress(Math.round((position / duration) * 100));
       }
       if (status.didJustFinish) {
-        const currentIndex = videos.findIndex((v) => v.id === selectedVideo);
-        if (currentIndex < videos.length - 1) {
-          setSelectedVideo(videos[currentIndex + 1].id);
+        const currentIndex = displayVideos.findIndex((v) => v.id === selectedVideo);
+        if (currentIndex < displayVideos.length - 1) {
+          setSelectedVideo(displayVideos[currentIndex + 1].id);
           setProgress(0);
           setIsPlaying(true);
         } else {
@@ -373,7 +363,7 @@ export default function App() {
   };
 
   const renderPlayer = () => {
-    const video = videos.find((v) => v.id === selectedVideo);
+    const video = displayVideos.find((v) => v.id === selectedVideo);
     if (!video) return null;
 
     return (
@@ -385,7 +375,7 @@ export default function App() {
         <View style={[styles.playerContainer, isLandscape && styles.playerContainerLandscape]}>
           {videoBuffering ? (
             <View style={[styles.playerScreen, video.isVertical && { height: 300 }, isLandscape && styles.playerScreenLandscape, { justifyContent: 'center', alignItems: 'center' }]}>
-              <SnakeLogo size={120} color="#333" spinning={true} />
+              <Text style={{ fontSize: 48 }}>⏳</Text>
             </View>
           ) : (
             <Video
@@ -423,7 +413,7 @@ export default function App() {
 
         <Text style={styles.sectionTitle}>فيديوهات مقترحة</Text>
         <FlatList
-          data={videos.filter((v) => v.id !== selectedVideo)}
+          data={displayVideos.filter((v) => v.id !== selectedVideo)}
           numColumns={2}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.videosGrid}
@@ -448,25 +438,52 @@ export default function App() {
     return (
       <View style={styles.screen}>
         <Text style={styles.pageTitle}>الفيديوهات</Text>
-        <FlatList
-          data={videos}
-          numColumns={2}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.videosGrid}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.videoCard} onPress={() => setSelectedVideo(item.id)}>
-              <View style={styles.videoThumb}>
-                <Text style={styles.videoPlayIcon}>▶️</Text>
-                <Text style={styles.videoDuration}>{item.duration}</Text>
-              </View>
-              <Text style={styles.videoTitle}>{item.title}</Text>
-              <Text style={styles.videoViews}>{item.views} مشاهدة</Text>
-            </TouchableOpacity>
-          )}
-        />
+        {displayVideos.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={{ fontSize: 48 }}>🎬</Text>
+            <Text style={{ color: t.text, marginTop: 8 }}>لا توجد فيديوهات بعد</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={displayVideos}
+            numColumns={2}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.videosGrid}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.videoCard} onPress={() => setSelectedVideo(item.id)}>
+                <View style={styles.videoThumb}>
+                  <Text style={styles.videoPlayIcon}>▶️</Text>
+                  <Text style={styles.videoDuration}>{item.duration}</Text>
+                </View>
+                <Text style={styles.videoTitle}>{item.title}</Text>
+                <Text style={styles.videoViews}>{item.views} مشاهدة</Text>
+              </TouchableOpacity>
+            )}
+          />
+        )}
       </View>
     );
   };
+
+  const renderSubscription = () => (
+    <View style={[styles.screen, { backgroundColor: t.bg }]}>
+      <Text style={[styles.pageTitle, { color: t.text }]}>الاشتراك</Text>
+      {[
+        { name: 'شهري', price: '$1.99', features: 'كل المحتوى • بدون إعلانات' },
+        { name: 'سنوي', price: '$14.99', features: 'نفس الشهري + شهرين مجاناً' },
+        { name: 'مدى الحياة', price: '$29.99', features: 'دفعة واحدة للأبد' },
+      ].map((plan, i) => (
+        <View key={i} style={[styles.planCard, { backgroundColor: t.card }]}>
+          <Text style={[styles.planName, { color: t.text }]}>{plan.name}</Text>
+          <Text style={[styles.planPrice, { color: t.accent }]}>{plan.price}</Text>
+          <Text style={[styles.planFeatures, { color: t.text }]}>{plan.features}</Text>
+          <TouchableOpacity style={[styles.planBtn, { backgroundColor: t.btn }]}>
+            <Text style={[styles.planBtnText, { color: t.btnText }]}>اشترك</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
 
   const renderMore = () => (
     <View style={[styles.screen, { backgroundColor: t.bg }]}>
@@ -490,20 +507,24 @@ export default function App() {
       <View style={[styles.moreItem, { backgroundColor: t.card }]}>
         <Text style={[styles.moreItemText, { color: t.text }]}>ℹ️ عن التطبيق</Text>
       </View>
+      <TouchableOpacity style={[styles.moreItem, { backgroundColor: t.card }]} onPress={() => window.open('http://localhost:3000', '_blank')}>
+        <Text style={[styles.moreItemText, { color: t.text }]}>⚙️ لوحة التحكم</Text>
+      </TouchableOpacity>
     </View>
   );
 
-  const renderPlaceholder = (name: string) => (
-    <View style={styles.screen}>
-      <Text style={styles.placeholderText}>{name}</Text>
-    </View>
-  );
+  const bottomTabs = [
+    { id: 'home', label: 'الرئيسية', icon: '🏠' },
+    { id: 'requests', label: 'طلباتكم', icon: '📩' },
+    { id: 'subscription', label: 'الاشتراك', icon: '⭐' },
+    { id: 'more', label: 'المزيد', icon: '☰' },
+  ];
 
   if (splashVisible) {
     return (
       <View style={[styles.splashContainer, { backgroundColor: t.bg }]}>
         <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} backgroundColor={t.bg} />
-        <SnakeLogo size={160} color={t.accent} spinning={true} />
+        <Text style={{ fontSize: 80, fontWeight: 'bold', color: t.accent }}>Y</Text>
         <Text style={[styles.splashText, { color: t.text }]}>المكتبة</Text>
       </View>
     );
@@ -512,13 +533,12 @@ export default function App() {
   return (
     <View style={[styles.container, { backgroundColor: t.bg }]}>
       <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} backgroundColor={t.bg} />
-      
+
       <View style={styles.content}>
         {activeTab === 'home' && renderHome()}
-        {activeTab === 'files' && renderFiles()}
         {activeTab === 'videos' && renderVideos()}
         {activeTab === 'requests' && renderRequests()}
-        {activeTab === 'tests' && renderPlaceholder('الاختبارات')}
+        {activeTab === 'subscription' && renderSubscription()}
         {activeTab === 'more' && renderMore()}
       </View>
 
@@ -611,39 +631,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  upgradeBtn: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  upgradeBtnText: {
-    color: '#4CAF50',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  filterTabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  filterTab: {
-    marginRight: 24,
-    paddingVertical: 8,
-  },
-  filterTabActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#4CAF50',
-  },
-  filterTabText: {
-    fontSize: 14,
-    color: '#999',
-  },
-  filterTabTextActive: {
-    color: '#333',
-    fontWeight: '600',
-  },
   videosGrid: {
     paddingHorizontal: 12,
   },
@@ -699,9 +686,11 @@ const styles = StyleSheet.create({
     padding: 12,
     minHeight: 100,
   },
-  requestPlaceholder: {
+  requestInput: {
     fontSize: 16,
-    color: '#999',
+    color: '#333',
+    minHeight: 60,
+    textAlignVertical: 'top',
   },
   submitBtn: {
     backgroundColor: '#4CAF50',
@@ -793,12 +782,6 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '600',
   },
-  placeholderText: {
-    fontSize: 18,
-    color: '#333',
-    textAlign: 'center',
-    marginTop: 100,
-  },
   themeBtn: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -815,6 +798,36 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 16,
     borderRadius: 12,
+  },
+  planCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+  },
+  planName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  planPrice: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  planFeatures: {
+    fontSize: 13,
+    marginTop: 8,
+  },
+  planBtn: {
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  planBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   moreItemText: {
     fontSize: 16,
@@ -899,9 +912,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-  playerPlayIcon: {
-    fontSize: 48,
-  },
   playerControls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -953,15 +963,28 @@ const styles = StyleSheet.create({
     fontSize: 20,
     marginBottom: 4,
   },
-  tabIconActive: {
-    opacity: 1,
-  },
   tabLabel: {
     fontSize: 11,
     color: '#999',
   },
-  tabLabelActive: {
-    color: '#4CAF50',
-    fontWeight: '600',
+  loadingState: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  offlineBanner: {
+    backgroundColor: '#FF9800',
+    padding: 10,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
   },
 });
+
+export default App;
