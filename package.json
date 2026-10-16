@@ -1,7 +1,7 @@
 {
   "name": "maktaba-app",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "index.tsx",
   "dependencies": {
     "expo": "~57.0.29",
     "expo-av": "^16.0.8",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "@types/react-dom": "^19.3.0",
     "typescript": "~6.0.3"
   },
   "scripts": {

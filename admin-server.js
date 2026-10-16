@@ -11,12 +11,18 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Content-Security-Policy', "default-src 'self'");
   next();
 });
 
-// CORS
+// CORS - restrict in production
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:8082', 'http://localhost:3000'];
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-token');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
@@ -97,9 +103,19 @@ app.post('/api/login', (req, res) => {
 });
 
 // Admin auth middleware
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'maktaba2026';
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || crypto.randomBytes(32).toString('hex');
+if (!process.env.ADMIN_TOKEN) {
+  console.warn('⚠️  ADMIN_TOKEN غير محدد في البيئة. استخدم هذا المفتاح:', ADMIN_TOKEN);
+}
 function requireAuth(req, res, next) {
-  if (req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+  const token = req.headers['x-admin-token'];
+  if (!token || typeof token !== 'string' || token.length < 16) {
+    return res.status(401).json({ error: 'غير مصرح' });
+  }
+  // Constant-time comparison to prevent timing attacks
+  const tokenBuffer = Buffer.from(token);
+  const adminBuffer = Buffer.from(ADMIN_TOKEN);
+  if (tokenBuffer.length !== adminBuffer.length || !crypto.timingSafeEqual(tokenBuffer, adminBuffer)) {
     return res.status(401).json({ error: 'غير مصرح' });
   }
   next();
