@@ -136,24 +136,90 @@ if (!process.env.ADMIN_TOKEN) {
   console.log('🔑 ADMIN_TOKEN محمّل من .env');
 }
 
+// ============ جلسات لوحة التحكم ============
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '';
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // الجلسة صالحة 7 أيام
+
+if (!ADMIN_PASSWORD && !ADMIN_PASSWORD_HASH) {
+  console.warn('⚠️  مفيش كلمة سر للوحة التحكم! حط ADMIN_PASSWORD في .env وإلا مش هتقدر تسجّل دخول.');
+} else {
+  console.log('🔒 لوحة التحكم محمية بكلمة سر');
+}
+
+function passwordMatches(input) {
+  if (typeof input !== 'string' || !input) return false;
+  if (ADMIN_PASSWORD_HASH) {
+    const h = crypto.createHash('sha256').update(input).digest('hex');
+    const a = Buffer.from(h);
+    const b = Buffer.from(String(ADMIN_PASSWORD_HASH).toLowerCase().trim());
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+  if (!ADMIN_PASSWORD) return false;
+  const a = Buffer.from(input);
+  const b = Buffer.from(ADMIN_PASSWORD);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function signSession(expiresAt) {
+  const sig = crypto.createHmac('sha256', ADMIN_TOKEN).update(String(expiresAt)).digest('hex');
+  return `${expiresAt}.${sig}`;
+}
+
+function verifySession(token) {
+  if (typeof token !== 'string') return false;
+  const idx = token.indexOf('.');
+  if (idx < 1) return false;
+  const exp = token.slice(0, idx);
+  const sig = token.slice(idx + 1);
+  const n = Number(exp);
+  if (!Number.isFinite(n) || n < Date.now()) return false;
+  const expected = crypto.createHmac('sha256', ADMIN_TOKEN).update(exp).digest('hex');
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// حماية من تخمين كلمة السر: 10 محاولات كل 15 دقيقة
+const loginAttempts = {};
+function loginRateLimited(ip) {
+  const now = Date.now();
+  if (!loginAttempts[ip]) loginAttempts[ip] = [];
+  loginAttempts[ip] = loginAttempts[ip].filter(t => now - t < 15 * 60 * 1000);
+  if (loginAttempts[ip].length >= 10) return true;
+  loginAttempts[ip].push(now);
+  return false;
+}
+
+app.post('/api/admin/login', (req, res) => {
+  if (loginRateLimited(req.ip)) {
+    return res.status(429).json({ error: 'محاولات كثيرة جداً. استنى 15 دقيقة.' });
+  }
+  if (!ADMIN_PASSWORD && !ADMIN_PASSWORD_HASH) {
+    return res.status(500).json({ error: 'مفيش كلمة سر مضبوطة على السيرفر (ADMIN_PASSWORD في .env)' });
+  }
+  const { password } = req.body || {};
+  if (!passwordMatches(password)) {
+    return res.status(401).json({ error: 'كلمة السر غلط' });
+  }
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  res.json({ token: signSession(expiresAt), expiresAt });
+});
+
+app.get('/api/admin/check', (req, res) => {
+  res.json({ valid: verifySession(req.headers['x-admin-token']) });
+});
+
+// كل عمليات الكتابة لازم توكن جلسة صالح (أو المفتاح الرئيسي للسكربتات)
 function requireAuth(req, res, next) {
-  // 1) توكن صحيح في الهيدر
   const token = req.headers['x-admin-token'];
   if (typeof token === 'string' && token.length >= 16) {
-    const tokenBuffer = Buffer.from(token);
-    const adminBuffer = Buffer.from(ADMIN_TOKEN);
-    if (tokenBuffer.length === adminBuffer.length && crypto.timingSafeEqual(tokenBuffer, adminBuffer)) {
-      return next();
-    }
+    const a = Buffer.from(token);
+    const b = Buffer.from(ADMIN_TOKEN);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return next();
   }
-  // 2) طلب جاي من نفس الخادم (لوحة التحكم اللي بيخدمها هو نفسه)
-  const origin = req.headers.origin || req.headers.referer;
-  if (typeof origin === 'string' && origin.length > 0) {
-    try {
-      if (new URL(origin).host === req.headers.host) return next();
-    } catch (e) { /* عنوان غير صالح — تجاهل */ }
-  }
-  return res.status(401).json({ error: 'غير مصرح' });
+  if (verifySession(token)) return next();
+  return res.status(401).json({ error: 'غير مصرح — سجّل دخول الأول' });
 }
 
 // Validation helpers

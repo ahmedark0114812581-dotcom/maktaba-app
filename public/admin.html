@@ -51,15 +51,36 @@
     .pagination button { padding: 8px 16px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; }
     .pagination button.active { background: #2E7D32; color: #fff; border-color: #2E7D32; }
     .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+    /* ===== شاشة تسجيل الدخول ===== */
+    .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #f0f2f5; display: flex; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
+    .login-box { background: #fff; border-radius: 16px; padding: 28px 22px; width: 100%; max-width: 380px; box-shadow: 0 4px 24px rgba(0,0,0,0.12); text-align: center; }
+    .login-logo { font-size: 42px; margin-bottom: 8px; }
+    .login-title { font-size: 20px; font-weight: 700; color: #2E7D32; margin-bottom: 6px; }
+    .login-sub { font-size: 13px; color: #888; margin-bottom: 20px; }
+    .login-msg { font-size: 13px; color: #c62828; min-height: 20px; margin-top: 10px; }
+    .logout-btn { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.22); color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
   </style>
 </head>
 <body>
-  <div class="header">لوحة التحكم</div>
+  <div class="header">
+    لوحة التحكم
+    <button class="logout-btn" onclick="logout()">خروج</button>
+  </div>
   <div class="tabs">
     <div class="tab active" onclick="showTab('home', this)">الرئيسية</div>
     <div class="tab" onclick="showTab('files', this)">الملفات</div>
     <div class="tab" onclick="showTab('videos', this)">الفيديوهات</div>
     <div class="tab" onclick="showTab('requests', this)">الطلبات</div>
+  </div>
+  <div class="login-overlay" id="loginOverlay" style="display:none">
+    <div class="login-box">
+      <div class="login-logo">🔒</div>
+      <div class="login-title">لوحة التحكم</div>
+      <div class="login-sub">اكتب كلمة السر عشان تدخل</div>
+      <input type="password" id="loginPassword" class="input" placeholder="كلمة السر" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="btn" onclick="doLogin()">دخول</button>
+      <div class="login-msg" id="loginMsg"></div>
+    </div>
   </div>
   <div class="content" id="content">
     <div class="loading">⏳ جاري التحميل...</div>
@@ -74,6 +95,84 @@
     let openedFileId = null;
     let currentPage = 1;
     const ITEMS_PER_PAGE = 20;
+
+    // ===== تسجيل الدخول والجلسة =====
+    const TOKEN_KEY = 'maktaba_admin_token';
+
+    function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+    function setToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {} }
+    function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+
+    function showLogin(msg) {
+      const o = document.getElementById('loginOverlay');
+      const m = document.getElementById('loginMsg');
+      if (m) m.textContent = msg || '';
+      if (o) o.style.display = 'flex';
+      const p = document.getElementById('loginPassword');
+      if (p) { p.value = ''; setTimeout(() => p.focus(), 120); }
+    }
+
+    function hideLogin() {
+      const o = document.getElementById('loginOverlay');
+      if (o) o.style.display = 'none';
+    }
+
+    async function checkToken() {
+      const t = getToken();
+      if (!t) return false;
+      try {
+        const r = await fetch('/api/admin/check', { headers: { 'x-admin-token': t } });
+        const d = await r.json();
+        return !!d.valid;
+      } catch (e) { return false; }
+    }
+
+    async function doLogin() {
+      const input = document.getElementById('loginPassword');
+      const msg = document.getElementById('loginMsg');
+      const pw = input ? input.value : '';
+      if (!pw) { if (msg) msg.textContent = 'اكتب كلمة السر'; return; }
+      if (msg) msg.textContent = '⏳ بيتحقق...';
+      try {
+        const r = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw })
+        });
+        const d = await r.json();
+        if (!r.ok) { if (msg) msg.textContent = d.error || 'فشل الدخول'; return; }
+        setToken(d.token);
+        hideLogin();
+        render();
+      } catch (e) {
+        if (msg) msg.textContent = 'فشل الاتصال بالسيرفر';
+      }
+    }
+
+    function logout() {
+      clearToken();
+      showLogin('خرجت بنجاح ✅');
+    }
+
+    // نضيف التوكن تلقائياً لكل طلبات /api/ + نرجّع شاشة الدخول لو الجلسة انتهت
+    (function () {
+      const realFetch = window.fetch.bind(window);
+      window.fetch = function (url, opts) {
+        opts = opts || {};
+        const u = typeof url === 'string' ? url : (url && url.url) || '';
+        const isApi = u.indexOf('/api/') === 0;
+        const isLogin = u.indexOf('/api/admin/login') === 0;
+        if (isApi && !isLogin) {
+          opts.headers = Object.assign({}, opts.headers || {}, { 'x-admin-token': getToken() });
+        }
+        return realFetch(url, opts).then(function (res) {
+          if (res.status === 401 && isApi && !isLogin) {
+            showLogin('الجلسة انتهت — سجّل دخول تاني');
+          }
+          return res;
+        });
+      };
+    })();
 
     // XSS Protection: escape HTML
     function escapeHtml(text) {
@@ -475,8 +574,15 @@
       render();
     }
 
-    // Initial load
-    render();
+    // ===== التشغيل =====
+    (async function boot() {
+      if (await checkToken()) {
+        hideLogin();
+        render();
+      } else {
+        showLogin();
+      }
+    })();
   </script>
 </body>
 </html>
