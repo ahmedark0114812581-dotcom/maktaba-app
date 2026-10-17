@@ -236,6 +236,7 @@ function isValidVideoUrl(u) {
   if (typeof u !== 'string' || !u.trim()) return false;
   const v = u.trim();
   if (v.startsWith('/')) return true;
+  if (v.startsWith('b2://')) return true; // فيديو على السحابة
   try { new URL(v); return true; } catch { return false; }
 }
 
@@ -467,7 +468,9 @@ if (useB2) {
 // (الدلو Private فبنولّد رابط مؤقت وقت الطلب — مفيش رابط دائم يتشارك)
 function b2KeyFromUrl(u) {
   const s = String(u || '');
-  if (s.indexOf('b2://') === 0) return s.slice(5);
+  if (s.indexOf('b2://') === 0) {
+    try { return decodeURIComponent(s.slice(5)); } catch (e) { return s.slice(5); }
+  }
   if (B2_PUBLIC_URL && s.indexOf(B2_PUBLIC_URL) === 0) return s.slice(B2_PUBLIC_URL.length).replace(/^\/+/, '');
   return null;
 }
