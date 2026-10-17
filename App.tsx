@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 
 // ============ THEMES ============
 const themes = {
@@ -85,18 +85,16 @@ function PlayerScreen({
   video,
   allVideos,
   t,
-  themeMode,
   onBack,
   onSelectVideo,
 }: {
   video: VideoItem;
   allVideos: VideoItem[];
   t: Theme;
-  themeMode: ThemeKey;
   onBack: () => void;
   onSelectVideo: (v: VideoItem) => void;
 }) {
-  const [isLandscape, setIsLandscape] = useState(false);
+  const videoViewRef = useRef<VideoView>(null);
 
   // مشغل الفيديو (expo-video)
   const player = useVideoPlayer({ uri: video.url }, (p) => {
@@ -110,7 +108,6 @@ function PlayerScreen({
   const { status } = useEvent(player, 'statusChange', { status: player.status });
 
   const currentTime = timeUpdate?.currentTime ?? 0;
-
   const duration = player.duration || 0;
   const progress = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
   const isLoading = status === 'loading';
@@ -134,20 +131,17 @@ function PlayerScreen({
     else player.play();
   };
 
-  const playerHeight = isLandscape
-    ? screenHeight
-    : video.isVertical
-      ? 300
-      : screenWidth * 0.5625;
+  const playerHeight = video.isVertical ? 340 : screenWidth * 0.5625;
 
   return (
-    <View style={[styles.playerContainer, isLandscape && styles.landscapeContainer, { backgroundColor: t.bg }]}>
+    <View style={[styles.playerContainer, { backgroundColor: t.bg }]}>
       <TouchableOpacity style={styles.playerBack} onPress={onBack}>
         <Text style={[styles.playerBackText, { color: t.accent }]}>←</Text>
       </TouchableOpacity>
 
       <View style={[styles.playerVideo, { height: playerHeight }]}>
         <VideoView
+          ref={videoViewRef}
           player={player}
           style={styles.video}
           contentFit="contain"
@@ -186,8 +180,8 @@ function PlayerScreen({
         <TouchableOpacity onPress={() => player.seekBy(10)} style={styles.controlBtn}>
           <Text style={[styles.controlBtnText, { color: t.text }]}>⏩</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setIsLandscape(!isLandscape)} style={styles.controlBtn}>
-          <Text style={[styles.controlBtnText, { color: t.text }]}>{isLandscape ? '📱' : '🔄'}</Text>
+        <TouchableOpacity onPress={() => videoViewRef.current?.enterFullscreen()} style={styles.controlBtn}>
+          <Text style={[styles.controlBtnText, { color: t.text }]}>⛶</Text>
         </TouchableOpacity>
       </View>
 
@@ -202,27 +196,24 @@ function PlayerScreen({
         </Text>
       </View>
 
-      {!isLandscape && (
-        <>
-          <Text style={[styles.suggestedTitle, { color: t.text }]}>فيديوهات مقترحة</Text>
-          <FlatList
-            data={allVideos.filter((v) => v.id !== video.id).slice(0, 4)}
-            numColumns={2}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.suggestedGrid}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.suggestedCard} onPress={() => onSelectVideo(item)}>
-                <View style={[styles.suggestedThumb, { backgroundColor: t.card }]}>
-                  <Text style={[styles.suggestedPlayIcon, { color: t.accent }]}>
-                    {item.isVertical ? '📱' : '▶'}
-                  </Text>
-                </View>
-                <Text style={[styles.suggestedVideoTitle, { color: t.text }]}>{item.title}</Text>
-              </TouchableOpacity>
-            )}
-          />
-        </>
-      )}
+      <Text style={[styles.suggestedTitle, { color: t.text }]}>فيديوهات مقترحة</Text>
+      <FlatList
+        data={allVideos.filter((v) => v.id !== video.id).slice(0, 6)}
+        numColumns={2}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.suggestedGrid}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.suggestedCard} onPress={() => onSelectVideo(item)}>
+            <View style={[styles.suggestedThumb, { backgroundColor: t.card }]}>
+              <Text style={[styles.suggestedPlayIcon, { color: t.accent }]}>
+                {item.isVertical ? '📱' : '▶'}
+              </Text>
+              <Text style={styles.videoDuration}>{item.duration}</Text>
+            </View>
+            <Text style={[styles.suggestedVideoTitle, { color: t.text }]}>{item.title}</Text>
+          </TouchableOpacity>
+        )}
+      />
     </View>
   );
 }
@@ -268,7 +259,6 @@ export default function App() {
         video={selectedVideo}
         allVideos={sampleVideos}
         t={t}
-        themeMode={theme}
         onBack={() => {
           setSelectedVideo(null);
           setActiveTab(selectedFolder ? 'folder' : 'home');
@@ -307,7 +297,7 @@ export default function App() {
                   </Text>
                   <Text style={styles.videoDuration}>{video.duration}</Text>
                 </View>
-                <Text style={[styles.videoTitle, { color: t.text }]}>{video.title}</Text>
+                <Text style={[styles.videoTitle, { color: t.text }]} numberOfLines={2}>{video.title}</Text>
                 <Text style={[styles.videoViews, { color: t.textSecondary }]}>{video.views} مشاهدة</Text>
               </TouchableOpacity>
             ))}
@@ -343,10 +333,10 @@ export default function App() {
             style={[styles.folderCard, { backgroundColor: t.card, borderColor: t.border }]}
             onPress={() => { setSelectedFolder(folder); setActiveTab('folder'); }}
           >
-            <View style={[styles.folderIcon, { backgroundColor: folder.color + '20' }]}>
+            <View style={[styles.folderIcon, { backgroundColor: folder.color + '22' }]}>
               <Text style={[styles.folderIconText, { color: folder.color }]}>📁</Text>
             </View>
-            <Text style={[styles.folderName, { color: t.text }]}>{folder.name}</Text>
+            <Text style={[styles.folderName, { color: t.text }]} numberOfLines={1}>{folder.name}</Text>
             <Text style={[styles.folderCount, { color: t.textSecondary }]}>{folder.count} فيديو</Text>
           </TouchableOpacity>
         ))}
@@ -482,6 +472,8 @@ export default function App() {
   );
 }
 
+const CARD_W = (screenWidth - 44) / 2;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   // Splash
@@ -502,51 +494,81 @@ const styles = StyleSheet.create({
   bannerSub: { fontSize: 12, marginTop: 4 },
   bannerBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
   bannerBtnText: { color: '#FFFFFF', fontWeight: '600' },
-  // Grid
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12 },
-  folderCard: { width: (screenWidth - 36) / 2, margin: 6, padding: 16, borderRadius: 12, borderWidth: 1 },
-  folderIcon: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 8 },
-  folderIconText: { fontSize: 24 },
-  folderName: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  folderCount: { fontSize: 12, textAlign: 'center', marginTop: 4 },
-  // Folder
+  // ===== شبكة الملفات (أكبر وأرتب) =====
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10, marginTop: 6 },
+  folderCard: {
+    width: CARD_W,
+    margin: 6,
+    paddingVertical: 22,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  folderIcon: {
+    width: 84, height: 84, borderRadius: 42,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
+  },
+  folderIconText: { fontSize: 42 },
+  folderName: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  folderCount: { fontSize: 13, textAlign: 'center', marginTop: 6 },
+  // Folder header
   folderHeader: { flexDirection: 'row', alignItems: 'center', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 10 },
-  backBtn: { fontSize: 24, marginRight: 12 },
-  folderHeaderTitle: { fontSize: 20, fontWeight: 'bold' },
+  backBtn: { fontSize: 26, marginRight: 12 },
+  folderHeaderTitle: { fontSize: 22, fontWeight: 'bold' },
   emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14 },
-  // Videos
-  videoGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12 },
-  videoCard: { width: (screenWidth - 36) / 2, margin: 6 },
-  videoThumb: { width: '100%', height: 100, borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative' },
-  videoPlayIcon: { fontSize: 24 },
-  videoDuration: { position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.7)', color: '#FFFFFF', fontSize: 11, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  videoTitle: { fontSize: 13, fontWeight: '600', marginTop: 6 },
-  videoViews: { fontSize: 11, marginTop: 2 },
+  // ===== شبكة الفيديوهات (أكبر) =====
+  videoGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10, marginTop: 4 },
+  videoCard: { width: CARD_W, margin: 6 },
+  videoThumb: {
+    width: '100%', height: 150, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center', position: 'relative',
+    shadowColor: '#000000', shadowOpacity: 0.10, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 }, elevation: 4,
+  },
+  videoPlayIcon: { fontSize: 38 },
+  videoDuration: {
+    position: 'absolute', bottom: 8, right: 8,
+    backgroundColor: 'rgba(0,0,0,0.78)', color: '#FFFFFF',
+    fontSize: 12, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+  },
+  videoTitle: { fontSize: 15, fontWeight: '600', marginTop: 8, lineHeight: 20 },
+  videoViews: { fontSize: 12, marginTop: 3 },
   // Player
   playerContainer: { flex: 1 },
-  landscapeContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 },
   playerBack: { position: 'absolute', top: 50, left: 16, zIndex: 10, padding: 10 },
-  playerBackText: { fontSize: 24 },
+  playerBackText: { fontSize: 26 },
   playerVideo: { width: '100%', backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', marginTop: 50 },
   video: { width: '100%', height: '100%' },
-  loadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
+  loadingOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.35)',
+  },
   loadingText: { color: '#FFFFFF', marginTop: 8, fontSize: 13 },
-  playBtn: { position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  playBtnText: { fontSize: 24, color: '#FFFFFF' },
-  playerControls: { flexDirection: 'row', justifyContent: 'center', paddingVertical: 12, gap: 20 },
+  playBtn: {
+    position: 'absolute', width: 64, height: 64, borderRadius: 32,
+    backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center',
+  },
+  playBtnText: { fontSize: 26, color: '#FFFFFF' },
+  playerControls: { flexDirection: 'row', justifyContent: 'center', paddingVertical: 12, gap: 22 },
   controlBtn: { padding: 8 },
-  controlBtnText: { fontSize: 24 },
+  controlBtnText: { fontSize: 26 },
   progressBar: { height: 4, marginHorizontal: 16, borderRadius: 2 },
   progressFill: { height: '100%', borderRadius: 2 },
   playerInfo: { padding: 16 },
   playerTitle: { fontSize: 18, fontWeight: 'bold' },
   playerViews: { fontSize: 14, marginTop: 4 },
-  suggestedTitle: { fontSize: 16, fontWeight: 'bold', margin: 16 },
-  suggestedGrid: { paddingHorizontal: 12 },
-  suggestedCard: { width: (screenWidth - 36) / 2, margin: 6 },
-  suggestedThumb: { width: '100%', height: 80, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  suggestedPlayIcon: { fontSize: 20 },
-  suggestedVideoTitle: { fontSize: 12, marginTop: 4 },
+  suggestedTitle: { fontSize: 17, fontWeight: 'bold', margin: 16 },
+  suggestedGrid: { paddingHorizontal: 10 },
+  suggestedCard: { width: CARD_W, margin: 6 },
+  suggestedThumb: { width: '100%', height: 130, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  suggestedPlayIcon: { fontSize: 32 },
+  suggestedVideoTitle: { fontSize: 14, fontWeight: '600', marginTop: 6, lineHeight: 19 },
   // Pages
   pageTitle: { fontSize: 24, fontWeight: 'bold', margin: 16, marginTop: 60 },
   subSub: { fontSize: 14, marginHorizontal: 16, marginBottom: 16 },
@@ -555,11 +577,17 @@ const styles = StyleSheet.create({
   requestInput: { marginHorizontal: 16, padding: 12, borderRadius: 12, minHeight: 100, textAlignVertical: 'top', borderWidth: 1 },
   submitBtn: { marginHorizontal: 16, marginTop: 12, padding: 14, borderRadius: 12, alignItems: 'center' },
   submitBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
-  requestCard: { marginHorizontal: 16, marginVertical: 6, padding: 14, borderRadius: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  requestCard: {
+    marginHorizontal: 16, marginVertical: 6, padding: 14, borderRadius: 12,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
   requestText: { fontSize: 14, flex: 1 },
   requestStatus: { fontSize: 12 },
   // Subscription
-  planCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 16, marginVertical: 6, padding: 16, borderRadius: 12, borderWidth: 1 },
+  planCard: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginHorizontal: 16, marginVertical: 6, padding: 16, borderRadius: 12, borderWidth: 1,
+  },
   planInfo: { flex: 1 },
   planName: { fontSize: 16, fontWeight: '600' },
   planFeatures: { fontSize: 12, marginTop: 4 },
@@ -576,7 +604,7 @@ const styles = StyleSheet.create({
   // Tab Bar
   tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingBottom: 8, paddingTop: 8 },
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tabIcon: { fontSize: 20, marginBottom: 4 },
+  tabIcon: { fontSize: 22, marginBottom: 4 },
   tabLabel: { fontSize: 11 },
   bottomPadding: { height: 100 },
 });
