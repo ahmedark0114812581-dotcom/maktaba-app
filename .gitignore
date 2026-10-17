@@ -5,3 +5,4 @@ web-build/
 .env
 data.json
 uploads/
+*.apk
