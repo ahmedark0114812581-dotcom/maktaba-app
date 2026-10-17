@@ -5,7 +5,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
     "@aws-sdk/s3-request-presigner": "^3.1152.0",
-    "expo": "~57.0.29",
+    "expo": "~57.0.30",
     "expo-dev-client": "~57.0.20",
     "expo-file-system": "~57.0.7",
     "expo-linear-gradient": "~57.0.2",
@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "@types/react-dom": "^19.3.0",
+    "@types/react-dom": "~19.2.3",
     "typescript": "~6.0.3"
   },
   "scripts": {
