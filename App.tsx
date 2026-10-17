@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
@@ -20,37 +21,46 @@ const { width: screenWidth } = Dimensions.get('window');
 // ============ THEMES ============
 const themes = {
   light: {
-    bg: '#FAF6EF',
-    text: '#3E322A',
-    card: '#F7F2E9',
-    banner: ['#9E8D7D', '#C8B8A6'],
-    btn: '#8B7DA6',
-    accent: '#8B7DA6',
-    textSecondary: '#8B7D6B',
-    border: '#E0D5C7',
-    tabBar: '#F7F2E9',
+    bg: '#FFFFFF',
+    text: '#212121',
+    textSecondary: '#757575',
+    card: '#FFFFFF',
+    mint: '#E8F5E9',
+    accent: '#2E7D32',
+    btn: '#43A047',
+    border: '#E0E0E0',
+    tabBar: '#FFFFFF',
+    bannerFrom: '#1B5E20',
+    bannerTo: '#43A047',
+    bannerText: '#FFFFFF',
   },
   dark: {
     bg: '#2A0848',
     text: '#FFD85E',
-    card: '#240B45',
-    banner: ['#023B1A', '#14B866'],
-    btn: '#661733',
-    accent: '#FFD85E',
     textSecondary: '#B8A9C9',
+    card: '#240B45',
+    mint: '#1E0A38',
+    accent: '#FFD85E',
+    btn: '#661733',
     border: '#3D1A6B',
     tabBar: '#240B45',
+    bannerFrom: '#023B1A',
+    bannerTo: '#14B866',
+    bannerText: '#FFFFFF',
   },
   premium: {
     bg: '#1C1C1C',
     text: '#F5F5F0',
-    card: '#2A2A2A',
-    banner: ['#2D1B4E', '#1E1230'],
-    btn: '#C9A227',
-    accent: '#C9A227',
     textSecondary: '#999999',
+    card: '#2A2A2A',
+    mint: '#242424',
+    accent: '#C9A227',
+    btn: '#C9A227',
     border: '#3A3A3A',
     tabBar: '#2A2A2A',
+    bannerFrom: '#2D1B4E',
+    bannerTo: '#1E1230',
+    bannerText: '#F5F5F0',
   },
 };
 
@@ -68,17 +78,23 @@ const folders = [
 ];
 
 const sampleVideos = [
-  { id: 1, title: 'مقدمة في البرمجة', duration: '15:30', views: '546', folderId: 1, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', isVertical: false },
-  { id: 2, title: 'أساسيات التصميم', duration: '12:45', views: '115', folderId: 1, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', isVertical: false },
-  { id: 3, title: 'تعلم الربح من الإنترنت', duration: '18:20', views: '89', folderId: 2, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', isVertical: false },
-  { id: 4, title: 'أفضل تطبيقات 2025', duration: '10:15', views: '67', folderId: 3, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', isVertical: true },
-  { id: 5, title: 'مراجعة هاتف جديد', duration: '14:00', views: '45', folderId: 4, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4', isVertical: false },
-  { id: 6, title: 'سرعة الإنجاز', duration: '9:30', views: '34', folderId: 5, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', isVertical: true },
-  { id: 7, title: 'شرح المعادلات', duration: '22:10', views: '234', folderId: 1, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4', isVertical: false },
-  { id: 8, title: 'الجدول الدوري', duration: '16:45', views: '178', folderId: 2, url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4', isVertical: false },
+  { id: 1, title: 'مقدمة في البرمجة', duration: '0:10', views: '546', folderId: 1, url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4', isVertical: false },
+  { id: 2, title: 'أساسيات التصميم', duration: '1:00', views: '115', folderId: 1, url: 'https://media.w3.org/2010/05/bunny/movie.mp4', isVertical: false },
+  { id: 3, title: 'تعلم الربح من الإنترنت', duration: '0:10', views: '89', folderId: 2, url: 'https://test-videos.co.uk/vids/jellyfish/mp4/h264/720/Jellyfish_720_10s_1MB.mp4', isVertical: false },
+  { id: 4, title: 'أفضل تطبيقات 2025', duration: '0:30', views: '67', folderId: 3, url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', isVertical: true },
+  { id: 5, title: 'مراجعة هاتف جديد', duration: '0:30', views: '45', folderId: 4, url: 'https://media.w3.org/2010/05/video/movie_300.mp4', isVertical: false },
+  { id: 6, title: 'سرعة الإنجاز', duration: '0:15', views: '34', folderId: 5, url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4', isVertical: true },
+  { id: 7, title: 'شرح المعادلات', duration: '0:10', views: '234', folderId: 1, url: 'https://test-videos.co.uk/vids/sintel/mp4/h264/720/Sintel_720_10s_1MB.mp4', isVertical: false },
+  { id: 8, title: 'الجدول الدوري', duration: '0:52', views: '178', folderId: 2, url: 'https://media.w3.org/2010/05/sintel/trailer.mp4', isVertical: false },
 ];
 
 type VideoItem = typeof sampleVideos[0];
+
+const HOME_TABS = [
+  { id: 'all', label: 'الكل' },
+  { id: 'hot', label: 'رائج' },
+  { id: 'new', label: 'حديث' },
+] as const;
 
 // ============ شاشة المشغل ============
 function PlayerScreen({
@@ -96,7 +112,6 @@ function PlayerScreen({
 }) {
   const videoViewRef = useRef<VideoView>(null);
 
-  // مشغل الفيديو (expo-video)
   const player = useVideoPlayer({ uri: video.url }, (p) => {
     p.loop = false;
     p.timeUpdateEventInterval = 0.5;
@@ -113,7 +128,6 @@ function PlayerScreen({
   const isLoading = status === 'loading';
   const hasError = status === 'error';
 
-  // الانتقال التلقائي للفيديو التالي عند الانتهاء
   const handleEnd = useCallback(() => {
     const idx = allVideos.findIndex((v) => v.id === video.id);
     if (idx >= 0 && idx < allVideos.length - 1) {
@@ -185,7 +199,7 @@ function PlayerScreen({
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.progressBar, { backgroundColor: t.card }]}>
+      <View style={[styles.progressBar, { backgroundColor: t.mint }]}>
         <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: t.accent }]} />
       </View>
 
@@ -204,13 +218,15 @@ function PlayerScreen({
         contentContainerStyle={styles.suggestedGrid}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.suggestedCard} onPress={() => onSelectVideo(item)}>
-            <View style={[styles.suggestedThumb, { backgroundColor: t.card }]}>
+            <View style={[styles.suggestedThumb, { backgroundColor: t.mint }]}>
               <Text style={[styles.suggestedPlayIcon, { color: t.accent }]}>
                 {item.isVertical ? '📱' : '▶'}
               </Text>
               <Text style={styles.videoDuration}>{item.duration}</Text>
             </View>
-            <Text style={[styles.suggestedVideoTitle, { color: t.text }]}>{item.title}</Text>
+            <Text style={[styles.suggestedVideoTitle, { color: t.text }]} numberOfLines={2}>
+              {item.title}
+            </Text>
           </TouchableOpacity>
         )}
       />
@@ -222,6 +238,7 @@ function PlayerScreen({
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
+  const [homeTab, setHomeTab] = useState<'all' | 'hot' | 'new'>('all');
   const [selectedFolder, setSelectedFolder] = useState<typeof folders[0] | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
   const [theme, setTheme] = useState<ThemeKey>('light');
@@ -238,6 +255,13 @@ export default function App() {
   }, []);
 
   const t = themes[theme];
+
+  const shownFolders = useMemo(() => {
+    const list = [...folders];
+    if (homeTab === 'hot') list.sort((a, b) => b.count - a.count);
+    if (homeTab === 'new') list.sort((a, b) => b.id - a.id);
+    return list;
+  }, [homeTab]);
 
   // ============ SPLASH ============
   if (showSplash) {
@@ -284,21 +308,23 @@ export default function App() {
         {folderVideos.length === 0 ? (
           <Text style={[styles.emptyText, { color: t.textSecondary }]}>مفيش فيديوهات في الملف ده لسه</Text>
         ) : (
-          <View style={styles.videoGrid}>
+          <View style={styles.grid}>
             {folderVideos.map((video) => (
               <TouchableOpacity
                 key={video.id}
-                style={styles.videoCard}
+                style={[styles.videoCard, { backgroundColor: t.card, borderColor: t.border }]}
                 onPress={() => setSelectedVideo(video)}
               >
-                <View style={[styles.videoThumb, { backgroundColor: t.card }]}>
+                <View style={[styles.videoThumb, { backgroundColor: t.mint }]}>
                   <Text style={[styles.videoPlayIcon, { color: t.accent }]}>
                     {video.isVertical ? '📱' : '▶'}
                   </Text>
                   <Text style={styles.videoDuration}>{video.duration}</Text>
                 </View>
-                <Text style={[styles.videoTitle, { color: t.text }]} numberOfLines={2}>{video.title}</Text>
-                <Text style={[styles.videoViews, { color: t.textSecondary }]}>{video.views} مشاهدة</Text>
+                <View style={styles.videoMeta}>
+                  <Text style={[styles.videoTitle, { color: t.text }]} numberOfLines={2}>{video.title}</Text>
+                  <Text style={[styles.videoViews, { color: t.textSecondary }]}>{video.views} مشاهدة</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -311,33 +337,68 @@ export default function App() {
   // ============ HOME ============
   const renderHome = () => (
     <ScrollView style={[styles.container, { backgroundColor: t.bg }]} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: t.text }]}>المكتبة</Text>
+      <View style={styles.homeTop}>
+        <Image source={require('./assets/icon.png')} style={[styles.avatar, { borderColor: t.accent }]} />
+        <Text style={[styles.homeTitle, { color: t.text }]}>المكتبة 🔥</Text>
       </View>
-      <TouchableOpacity
-        style={[styles.membershipBanner, { backgroundColor: t.card, borderColor: t.btn }]}
-        onPress={() => setActiveTab('subscription')}
-      >
-        <View style={styles.bannerContent}>
-          <Text style={[styles.bannerTitle, { color: t.accent }]}>انضم لاشتراك المكتبة!</Text>
-          <Text style={[styles.bannerSub, { color: t.textSecondary }]}>بدون إعلانات • مشاهدة أسرع</Text>
-        </View>
-        <View style={[styles.bannerBtn, { backgroundColor: t.btn }]}>
-          <Text style={styles.bannerBtnText}>ترقية</Text>
-        </View>
+
+      <TouchableOpacity onPress={() => setActiveTab('subscription')} activeOpacity={0.85}>
+        <LinearGradient
+          colors={[t.bannerFrom, t.bannerTo]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.banner}
+        >
+          <View style={styles.bannerTextWrap}>
+            <Text style={[styles.bannerTitle, { color: t.bannerText }]}>JOIN OUR MEMBERSHIP!</Text>
+            <Text style={[styles.bannerSub, { color: t.bannerText }]}>AD-Free • Play Acceleration</Text>
+          </View>
+          {/* مكان صورة بنر التطبيق */}
+          <Image
+            source={require('./assets/banner-badge-256.png')}
+            style={styles.bannerBadge}
+            resizeMode="contain"
+          />
+          <View style={styles.bannerBtn}>
+            <Text style={styles.bannerBtnText}>Upgrade</Text>
+          </View>
+        </LinearGradient>
       </TouchableOpacity>
+
+      <View style={styles.tabs}>
+        {HOME_TABS.map((tab) => (
+          <TouchableOpacity key={tab.id} style={styles.tab} onPress={() => setHomeTab(tab.id)}>
+            <Text style={[styles.tabText, { color: homeTab === tab.id ? t.accent : t.textSecondary }]}>
+              {tab.label}
+            </Text>
+            <View
+              style={[
+                styles.tabUnderline,
+                { backgroundColor: homeTab === tab.id ? t.accent : 'transparent' },
+              ]}
+            />
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <View style={styles.grid}>
-        {folders.map((folder) => (
+        {shownFolders.map((folder) => (
           <TouchableOpacity
             key={folder.id}
             style={[styles.folderCard, { backgroundColor: t.card, borderColor: t.border }]}
             onPress={() => { setSelectedFolder(folder); setActiveTab('folder'); }}
+            activeOpacity={0.85}
           >
-            <View style={[styles.folderIcon, { backgroundColor: folder.color + '22' }]}>
-              <Text style={[styles.folderIconText, { color: folder.color }]}>📁</Text>
+            <View style={[styles.folderThumb, { backgroundColor: t.mint }]}>
+              <Text style={styles.folderThumbIcon}>📁</Text>
+              <Text style={[styles.folderThumbName, { color: t.accent }]} numberOfLines={1}>
+                {folder.name}
+              </Text>
             </View>
-            <Text style={[styles.folderName, { color: t.text }]} numberOfLines={1}>{folder.name}</Text>
-            <Text style={[styles.folderCount, { color: t.textSecondary }]}>{folder.count} فيديو</Text>
+            <View style={styles.folderMeta}>
+              <Text style={[styles.folderCount, { color: t.text }]}>{folder.count}</Text>
+              <Text style={[styles.folderCountLabel, { color: t.textSecondary }]}>فيديو</Text>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -369,7 +430,7 @@ export default function App() {
       </TouchableOpacity>
       <Text style={[styles.sectionTitle, { color: t.text }]}>طلباتي</Text>
       {requests.map((req) => (
-        <View key={req.id} style={[styles.requestCard, { backgroundColor: t.card }]}>
+        <View key={req.id} style={[styles.requestCard, { backgroundColor: t.card, borderColor: t.border }]}>
           <Text style={[styles.requestText, { color: t.text }]}>{req.text}</Text>
           <Text style={[styles.requestStatus, { color: t.accent }]}>{req.status}</Text>
         </View>
@@ -388,7 +449,10 @@ export default function App() {
         { name: 'سنوي', price: '$14.99', features: 'بدون إعلانات • مشاهدة أسرع • توفير 30%' },
         { name: 'مدى الحياة', price: '$29.99', features: 'بدون إعلانات • مشاهدة أسرع • دفع مرة واحدة' },
       ].map((plan, i) => (
-        <TouchableOpacity key={i} style={[styles.planCard, { backgroundColor: t.card, borderColor: t.border }]}>
+        <TouchableOpacity
+          key={i}
+          style={[styles.planCard, { backgroundColor: t.card, borderColor: t.border }]}
+        >
           <View style={styles.planInfo}>
             <Text style={[styles.planName, { color: t.text }]}>{plan.name}</Text>
             <Text style={[styles.planFeatures, { color: t.textSecondary }]}>{plan.features}</Text>
@@ -414,11 +478,16 @@ export default function App() {
         ]).map((th) => (
           <TouchableOpacity
             key={th.id}
-            style={[styles.themeBtn, { backgroundColor: theme === th.id ? t.accent : t.card, borderColor: t.border }]}
+            style={[
+              styles.themeBtn,
+              { backgroundColor: theme === th.id ? t.accent : t.card, borderColor: t.border },
+            ]}
             onPress={() => setTheme(th.id)}
           >
             <Text style={styles.themeBtnIcon}>{th.icon}</Text>
-            <Text style={[styles.themeBtnText, { color: theme === th.id ? '#FFFFFF' : t.text }]}>{th.name}</Text>
+            <Text style={[styles.themeBtnText, { color: theme === th.id ? '#FFFFFF' : t.text }]}>
+              {th.name}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -429,7 +498,7 @@ export default function App() {
         { icon: '⚙️', label: 'الإعدادات' },
         { icon: 'ℹ️', label: 'عن التطبيق' },
       ].map((item, i) => (
-        <TouchableOpacity key={i} style={[styles.moreItem, { backgroundColor: t.card }]}>
+        <TouchableOpacity key={i} style={[styles.moreItem, { backgroundColor: t.card, borderColor: t.border }]}>
           <Text style={styles.moreIcon}>{item.icon}</Text>
           <Text style={[styles.moreText, { color: t.text }]}>{item.label}</Text>
         </TouchableOpacity>
@@ -481,69 +550,103 @@ const styles = StyleSheet.create({
   splashLogo: { width: 160, height: 160, marginBottom: 20 },
   splashTitle: { fontSize: 32, fontWeight: 'bold', marginBottom: 8 },
   splashSub: { fontSize: 16 },
-  // Header
-  header: { paddingTop: 50, paddingHorizontal: 20, paddingBottom: 10 },
-  headerTitle: { fontSize: 28, fontWeight: 'bold' },
+  // Home top (avatar + title)
+  homeTop: { alignItems: 'center', paddingTop: 48, paddingBottom: 8 },
+  avatar: { width: 84, height: 84, borderRadius: 42, borderWidth: 2 },
+  homeTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 12 },
   // Banner
-  membershipBanner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginHorizontal: 16, marginVertical: 10, padding: 16, borderRadius: 16, borderWidth: 1,
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 6,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 26,
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 6,
   },
-  bannerContent: { flex: 1 },
-  bannerTitle: { fontSize: 16, fontWeight: 'bold' },
-  bannerSub: { fontSize: 12, marginTop: 4 },
-  bannerBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  bannerBtnText: { color: '#FFFFFF', fontWeight: '600' },
-  // ===== شبكة الملفات (أكبر وأرتب) =====
+  bannerTextWrap: { flex: 1, paddingRight: 8 },
+  bannerTitle: { fontSize: 15, fontWeight: 'bold', fontStyle: 'italic' },
+  bannerSub: { fontSize: 11, marginTop: 4, opacity: 0.92 },
+  // ===== مكان صورة بنر التطبيق =====
+  bannerBadge: { width: 62, height: 62, marginRight: 8 },
+  bannerBtn: {
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+  },
+  bannerBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
+  // Home tabs
+  tabs: { flexDirection: 'row', paddingHorizontal: 18, marginTop: 14, marginBottom: 4 },
+  tab: { marginRight: 26, alignItems: 'center' },
+  tabText: { fontSize: 15, fontWeight: '600', paddingBottom: 6 },
+  tabUnderline: { height: 3, width: '100%', borderRadius: 2 },
+  // ===== الشبكة (عمودين) =====
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10, marginTop: 6 },
+  // بطاقة الملف — شكل من الصورة
   folderCard: {
     width: CARD_W,
     margin: 6,
-    paddingVertical: 22,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
-    alignItems: 'center',
+    overflow: 'hidden',
     shadowColor: '#000000',
     shadowOpacity: 0.10,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  folderIcon: {
-    width: 84, height: 84, borderRadius: 42,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
+  folderThumb: {
+    width: '100%',
+    height: 132,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 10,
   },
-  folderIconText: { fontSize: 42 },
-  folderName: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  folderCount: { fontSize: 13, textAlign: 'center', marginTop: 6 },
+  folderThumbIcon: { fontSize: 36, marginBottom: 8 },
+  folderThumbName: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  folderMeta: { paddingVertical: 14, alignItems: 'center' },
+  folderCount: { fontSize: 28, fontWeight: '800', lineHeight: 32 },
+  folderCountLabel: { fontSize: 12, marginTop: 2 },
   // Folder header
-  folderHeader: { flexDirection: 'row', alignItems: 'center', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 10 },
+  folderHeader: { flexDirection: 'row', alignItems: 'center', paddingTop: 48, paddingHorizontal: 16, paddingBottom: 10 },
   backBtn: { fontSize: 26, marginRight: 12 },
   folderHeaderTitle: { fontSize: 22, fontWeight: 'bold' },
   emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14 },
-  // ===== شبكة الفيديوهات (أكبر) =====
-  videoGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10, marginTop: 4 },
-  videoCard: { width: CARD_W, margin: 6 },
-  videoThumb: {
-    width: '100%', height: 150, borderRadius: 16,
-    justifyContent: 'center', alignItems: 'center', position: 'relative',
-    shadowColor: '#000000', shadowOpacity: 0.10, shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 }, elevation: 4,
+  // Video cards
+  videoCard: {
+    width: CARD_W,
+    margin: 6,
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
+  videoThumb: { width: '100%', height: 132, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   videoPlayIcon: { fontSize: 38 },
   videoDuration: {
     position: 'absolute', bottom: 8, right: 8,
     backgroundColor: 'rgba(0,0,0,0.78)', color: '#FFFFFF',
     fontSize: 12, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
   },
-  videoTitle: { fontSize: 15, fontWeight: '600', marginTop: 8, lineHeight: 20 },
-  videoViews: { fontSize: 12, marginTop: 3 },
+  videoMeta: { padding: 12 },
+  videoTitle: { fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  videoViews: { fontSize: 12, marginTop: 4 },
   // Player
   playerContainer: { flex: 1 },
-  playerBack: { position: 'absolute', top: 50, left: 16, zIndex: 10, padding: 10 },
+  playerBack: { position: 'absolute', top: 48, left: 16, zIndex: 10, padding: 10 },
   playerBackText: { fontSize: 26 },
-  playerVideo: { width: '100%', backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', marginTop: 50 },
+  playerVideo: { width: '100%', backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', marginTop: 48 },
   video: { width: '100%', height: '100%' },
   loadingOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -566,27 +669,27 @@ const styles = StyleSheet.create({
   suggestedTitle: { fontSize: 17, fontWeight: 'bold', margin: 16 },
   suggestedGrid: { paddingHorizontal: 10 },
   suggestedCard: { width: CARD_W, margin: 6 },
-  suggestedThumb: { width: '100%', height: 130, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  suggestedPlayIcon: { fontSize: 32 },
+  suggestedThumb: { width: '100%', height: 132, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  suggestedPlayIcon: { fontSize: 34 },
   suggestedVideoTitle: { fontSize: 14, fontWeight: '600', marginTop: 6, lineHeight: 19 },
   // Pages
-  pageTitle: { fontSize: 24, fontWeight: 'bold', margin: 16, marginTop: 60 },
+  pageTitle: { fontSize: 24, fontWeight: 'bold', margin: 16, marginTop: 58 },
   subSub: { fontSize: 14, marginHorizontal: 16, marginBottom: 16 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', margin: 16, marginTop: 24 },
   // Requests
-  requestInput: { marginHorizontal: 16, padding: 12, borderRadius: 12, minHeight: 100, textAlignVertical: 'top', borderWidth: 1 },
-  submitBtn: { marginHorizontal: 16, marginTop: 12, padding: 14, borderRadius: 12, alignItems: 'center' },
+  requestInput: { marginHorizontal: 16, padding: 12, borderRadius: 16, minHeight: 100, textAlignVertical: 'top', borderWidth: 1 },
+  submitBtn: { marginHorizontal: 16, marginTop: 12, padding: 14, borderRadius: 16, alignItems: 'center' },
   submitBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
   requestCard: {
-    marginHorizontal: 16, marginVertical: 6, padding: 14, borderRadius: 12,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginHorizontal: 16, marginVertical: 6, padding: 14, borderRadius: 16,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1,
   },
   requestText: { fontSize: 14, flex: 1 },
-  requestStatus: { fontSize: 12 },
+  requestStatus: { fontSize: 12, fontWeight: '600' },
   // Subscription
   planCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginHorizontal: 16, marginVertical: 6, padding: 16, borderRadius: 12, borderWidth: 1,
+    marginHorizontal: 16, marginVertical: 6, padding: 16, borderRadius: 18, borderWidth: 1,
   },
   planInfo: { flex: 1 },
   planName: { fontSize: 16, fontWeight: '600' },
@@ -595,10 +698,13 @@ const styles = StyleSheet.create({
   // More
   moreSectionTitle: { fontSize: 12, fontWeight: '600', marginHorizontal: 16, marginTop: 16, marginBottom: 8 },
   themeRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8 },
-  themeBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
+  themeBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
   themeBtnIcon: { fontSize: 20, marginBottom: 4 },
   themeBtnText: { fontSize: 12, fontWeight: '600' },
-  moreItem: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 6, padding: 16, borderRadius: 12 },
+  moreItem: {
+    flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 6,
+    padding: 16, borderRadius: 16, borderWidth: 1,
+  },
   moreIcon: { fontSize: 20, marginRight: 12 },
   moreText: { fontSize: 16 },
   // Tab Bar
