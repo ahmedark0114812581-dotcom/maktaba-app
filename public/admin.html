@@ -71,6 +71,7 @@
     <div class="tab" onclick="showTab('files', this)">الملفات</div>
     <div class="tab" onclick="showTab('videos', this)">الفيديوهات</div>
     <div class="tab" onclick="showTab('requests', this)">الطلبات</div>
+    <div class="tab" onclick="showTab('codes', this)">الأكواد</div>
   </div>
   <div class="login-overlay" id="loginOverlay" style="display:none">
     <div class="login-box">
@@ -240,6 +241,8 @@
         renderVideos(content);
       } else if (currentTab === 'requests') {
         renderRequests(content);
+      } else if (currentTab === 'codes') {
+        renderCodes(content);
       }
     }
 
@@ -415,6 +418,83 @@
         <div class="section-header">أكثر طلباً</div>
         <div class="empty-state">لا توجد طلبات بعد</div>
       `;
+    }
+
+    // ============ الأكواد ============
+    function renderCodes(content) {
+      content.innerHTML = `
+        <div class="section-header">أكواد الاشتراك</div>
+        <div class="card">
+          <div class="section-header" style="margin-top:0">توليد كود جديد</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input id="codeInput" class="input" placeholder="مثال: AHMED2026" style="flex:1;min-width:140px">
+            <select id="codePlan" class="input" style="width:120px">
+              <option value="monthly">شهري</option>
+              <option value="yearly">سنوي</option>
+              <option value="lifetime">مدى الحياة</option>
+            </select>
+            <input id="codeMax" class="input" type="number" min="0" placeholder="الحد (0=غير محدود)" style="width:150px">
+            <button class="btn" onclick="generateCode()">توليد</button>
+          </div>
+        </div>
+        <div class="section-header">الأكواد الموجودة</div>
+        <div id="codesList"><div class="empty-state">⏳ جاري التحميل...</div></div>
+      `;
+      loadCodes();
+    }
+
+    async function loadCodes() {
+      const list = document.getElementById('codesList');
+      try {
+        const r = await fetch('/api/admin/codes');
+        if (!r.ok) throw new Error('غير مصرح');
+        const j = await r.json();
+        const codes = j.data || [];
+        if (!codes.length) { list.innerHTML = '<div class="empty-state">مفيش أكواد لسه</div>'; return; }
+        list.innerHTML = codes.map(c => `
+          <div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div>
+              <div style="font-weight:700;font-size:16px;letter-spacing:1px">${escapeHtml(c.code)}</div>
+              <div style="font-size:12px;color:#888;margin-top:4px">
+                ${escapeHtml(c.plan || '')} • استُخدم ${c.uses || 0}${c.maxUses ? ' / ' + c.maxUses : ''} مرة
+                ${c.active ? '' : ' • ⚠️ معطّل'}
+              </div>
+            </div>
+            <button class="btn btn-danger" onclick="deleteCode('${escapeHtml(c.code)}')">حذف</button>
+          </div>
+        `).join('');
+      } catch (e) {
+        list.innerHTML = '<div class="empty-state">❌ تعذر التحميل</div>';
+      }
+    }
+
+    async function generateCode() {
+      const code = document.getElementById('codeInput').value.trim();
+      const plan = document.getElementById('codePlan').value;
+      const maxUses = Number(document.getElementById('codeMax').value) || 0;
+      if (code.length < 4) { showToast('الكود قصير جداً'); return; }
+      try {
+        const r = await fetch('/api/admin/codes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, plan, maxUses }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'فشل');
+        document.getElementById('codeInput').value = '';
+        showToast('✅ اتعمل الكود');
+        loadCodes();
+      } catch (e) { showToast('❌ ' + e.message); }
+    }
+
+    async function deleteCode(code) {
+      if (!confirm('متأكد عايز تحذف الكود ده؟')) return;
+      try {
+        const r = await fetch('/api/admin/codes/' + encodeURIComponent(code), { method: 'DELETE' });
+        if (!r.ok) throw new Error('فشل');
+        showToast('✅ اتحذف');
+        loadCodes();
+      } catch (e) { showToast('❌ ' + e.message); }
     }
 
     function changePage(page) {
