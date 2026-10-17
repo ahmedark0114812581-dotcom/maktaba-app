@@ -325,7 +325,7 @@ export default function App() {
             duration: String(v.duration ?? '0:00'),
             views: String(v.views ?? 0),
             folderId: Number(v.folderId ?? v.fileId ?? 0),
-            url: String(v.url ?? ''),
+            url: String(v.playUrl || v.url || ''),
             isVertical: Boolean(v.isVertical),
           }))
         );

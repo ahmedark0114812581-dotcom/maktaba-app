@@ -274,15 +274,31 @@ app.delete('/api/files/:id', requireAuth, (req, res) => {
 });
 
 // Videos
-app.get('/api/videos', (req, res) => {
+app.get('/api/videos', async (req, res) => {
   const { page = 1, limit = 20, fileId } = req.query;
   let result = [...videos];
   if (fileId) result = result.filter(v => v.fileId === Number(fileId));
   result.sort((a, b) => b.id - a.id);
   const start = (Number(page) - 1) * Number(limit);
   const paginated = result.slice(start, start + Number(limit));
+
+  // الفيديوهات على B2 (دلو خاص) → نولّد رابط مؤقت لكل واحد
+  const withPlay = await Promise.all(paginated.map(async (v) => {
+    const key = b2KeyFromUrl(v.url);
+    if (key) {
+      try {
+        const playUrl = await presignB2(key);
+        return { ...v, playUrl, storage: 'b2' };
+      } catch (e) {
+        console.error('تعذر توليد رابط مؤقت للفيديو ' + v.id + ':', e.message);
+        return { ...v, playUrl: null, storage: 'b2' };
+      }
+    }
+    return { ...v, storage: 'local' };
+  }));
+
   res.json({
-    data: paginated,
+    data: withPlay,
     pagination: { page: Number(page), limit: Number(limit), total: result.length, pages: Math.ceil(result.length / Number(limit)) }
   });
 });
@@ -338,7 +354,7 @@ app.delete('/api/videos/:id', requireAuth, async (req, res) => {
   const stillUsed = videos.some(v => String(v.url || '') === u);
 
   // 1) ملف على السحابة (B2)
-  if (!stillUsed && s3 && B2_PUBLIC_URL && u.indexOf(B2_PUBLIC_URL) === 0) {
+  if (!stillUsed && s3 && b2KeyFromUrl(u)) {
     try {
       fileDeleted = await deleteFromB2(u);
     } catch (e) {
@@ -418,24 +434,51 @@ const useB2 = !!(B2_KEY_ID && B2_APP_KEY && B2_BUCKET && B2_ENDPOINT && B2_PUBLI
 let s3 = null;
 let PutObjectCommand = null;
 let DeleteObjectCommand = null;
+let GetObjectCommand = null;
+let getSignedUrl = null;
+
+const B2_URL_TTL = Number(process.env.B2_URL_TTL || 12 * 60 * 60); // صلاحية الرابط المؤقت: 12 ساعة
 
 if (useB2) {
   try {
     const aws = require('@aws-sdk/client-s3');
     PutObjectCommand = aws.PutObjectCommand;
     DeleteObjectCommand = aws.DeleteObjectCommand;
+    GetObjectCommand = aws.GetObjectCommand;
+    getSignedUrl = require('@aws-sdk/s3-request-presigner').getSignedUrl;
     s3 = new aws.S3Client({
       region: process.env.B2_REGION || 'auto',
       endpoint: 'https://' + B2_ENDPOINT,
       credentials: { accessKeyId: B2_KEY_ID, secretAccessKey: B2_APP_KEY },
+      // ⚠️ B2 محتاج path-style: s3.endpoint.com/bucket/key (مش bucket.s3.endpoint.com/key)
+      forcePathStyle: true,
     });
     console.log('☁️  التخزين السحابي (Backblaze B2) مفعّل — الدلو: ' + B2_BUCKET);
+    console.log('⏰ روابط الفيديو مؤقتة — صلاحيتها ' + Math.round(B2_URL_TTL / 3600) + ' ساعة');
   } catch (e) {
     console.error('❌ تعذر تحميل مكتبة التخزين السحابي:', e.message);
     s3 = null;
   }
 } else {
   console.log('💾 التخزين محلي (B2 مش مضبوط في .env)');
+}
+
+// بنخزّن الفيديوهات على B2 بالشكل: b2://videos/xxx.mp4
+// (الدلو Private فبنولّد رابط مؤقت وقت الطلب — مفيش رابط دائم يتشارك)
+function b2KeyFromUrl(u) {
+  const s = String(u || '');
+  if (s.indexOf('b2://') === 0) return s.slice(5);
+  if (B2_PUBLIC_URL && s.indexOf(B2_PUBLIC_URL) === 0) return s.slice(B2_PUBLIC_URL.length).replace(/^\/+/, '');
+  return null;
+}
+
+async function presignB2(key, expiresIn) {
+  if (!s3 || !getSignedUrl) return null;
+  return await getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: B2_BUCKET, Key: key }),
+    { expiresIn: expiresIn || B2_URL_TTL }
+  );
 }
 
 async function uploadToB2(localPath, filename, mimetype) {
@@ -447,14 +490,12 @@ async function uploadToB2(localPath, filename, mimetype) {
     Body: fs.createReadStream(localPath),
     ContentType: mimetype || 'video/mp4',
   }));
-  return { key, url: B2_PUBLIC_URL + '/' + key };
+  return { key, url: 'b2://' + key };
 }
 
 async function deleteFromB2(url) {
   if (!s3) return false;
-  const u = String(url || '');
-  if (!B2_PUBLIC_URL || u.indexOf(B2_PUBLIC_URL) !== 0) return false;
-  const key = u.slice(B2_PUBLIC_URL.length).replace(/^\/+/, '');
+  const key = b2KeyFromUrl(url);
   if (!key) return false;
   await s3.send(new DeleteObjectCommand({ Bucket: B2_BUCKET, Key: key }));
   return true;

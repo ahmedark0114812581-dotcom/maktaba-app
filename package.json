@@ -4,6 +4,7 @@
   "main": "index.tsx",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "expo": "~57.0.29",
     "expo-dev-client": "~57.0.20",
     "expo-linear-gradient": "~57.0.2",
