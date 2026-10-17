@@ -263,10 +263,27 @@ app.delete('/api/videos/:id', requireAuth, (req, res) => {
   const id = Number(req.params.id);
   const index = videos.findIndex(v => v.id === id);
   if (index === -1) return res.status(404).json({ error: 'الفيديو غير موجود' });
-  videos.splice(index, 1);
+  const removed = videos.splice(index, 1)[0];
+
+  // امسح الملف المرفوع من الديسك كمان (لو الفيديو كان مرفوع على السيرفر)
+  let fileDeleted = false;
+  try {
+    const u = String(removed.url || '');
+    if (u.startsWith('/uploads/')) {
+      const uploadsDir = path.join(__dirname, 'uploads');
+      const fp = path.resolve(path.join(__dirname, u.replace(/^\/+/, '')));
+      if (fp.startsWith(uploadsDir) && fs.existsSync(fp)) {
+        fs.unlinkSync(fp);
+        fileDeleted = true;
+      }
+    }
+  } catch (e) {
+    console.error('تعذر مسح ملف الفيديو:', e.message);
+  }
+
   files.forEach(f => { f.count = videos.filter(v => v.fileId === f.id).length; });
   saveData();
-  res.json({ success: true });
+  res.json({ success: true, fileDeleted });
 });
 
 // Requests
