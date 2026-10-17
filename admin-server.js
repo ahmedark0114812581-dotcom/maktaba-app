@@ -87,6 +87,8 @@ function loadData() {
         files: data.files || [],
         videos: data.videos || [],
         requests: data.requests || [],
+        codes: data.codes || [],
+        downloads: data.downloads || [],
         analytics: data.analytics || { totalViews: 0, videosWatched: 0, dailyUsers: [] }
       };
     }
@@ -102,19 +104,21 @@ function loadData() {
     ],
     videos: [],
     requests: [],
+    codes: [],
+    downloads: [],
     analytics: { totalViews: 0, videosWatched: 0, dailyUsers: [] }
   };
 }
 
 function saveData() {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ users, files, videos, requests, analytics }, null, 2));
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ users, files, videos, requests, codes, downloads, analytics }, null, 2));
   } catch (e) {
     console.error('Error saving data:', e);
   }
 }
 
-let { users, files, videos, requests, analytics } = loadData();
+let { users, files, videos, requests, codes, downloads, analytics } = loadData();
 
 // Auth
 app.post('/api/login', (req, res) => {
@@ -379,6 +383,90 @@ app.delete('/api/videos/:id', requireAuth, async (req, res) => {
   files.forEach(f => { f.count = videos.filter(v => v.fileId === f.id).length; });
   saveData();
   res.json({ success: true, fileDeleted, fileKept: stillUsed });
+});
+
+// ============ التحميلات (لكل جهاز) ============
+app.get('/api/downloads', (req, res) => {
+  const d = String(req.query.deviceId || '');
+  if (!d) return res.status(400).json({ error: 'deviceId مطلوب' });
+  res.json({ data: downloads.filter(x => x.deviceId === d) });
+});
+
+app.post('/api/download', (req, res) => {
+  const { deviceId, videoId, title, size } = req.body || {};
+  if (!deviceId || !videoId) return res.status(400).json({ error: 'deviceId و videoId مطلوبين' });
+  const did = String(deviceId);
+  const vid = String(videoId);
+  const existing = downloads.find(x => x.deviceId === did && String(x.videoId) === vid);
+  if (existing) {
+    existing.title = String(title || existing.title);
+    existing.size = Number(size || existing.size);
+    existing.updatedAt = Date.now();
+    saveData();
+    return res.json({ success: true, data: existing });
+  }
+  const item = { id: Date.now(), deviceId: did, videoId: Number(videoId), title: String(title || ''), size: Number(size || 0), createdAt: Date.now() };
+  downloads.push(item);
+  saveData();
+  res.json({ success: true, data: item });
+});
+
+app.delete('/api/download/:id', (req, res) => {
+  const d = String(req.query.deviceId || '');
+  const id = Number(req.params.id);
+  const index = downloads.findIndex(x => x.id === id && (!d || x.deviceId === d));
+  if (index === -1) return res.status(404).json({ error: 'التحميل غير موجود' });
+  downloads.splice(index, 1);
+  saveData();
+  res.json({ success: true });
+});
+
+// ============ أكواد الاشتراك ============
+// توليد كود جديد (من لوحة التحكم)
+app.post('/api/admin/codes', requireAuth, (req, res) => {
+  const { code, plan, maxUses } = req.body || {};
+  if (!code || typeof code !== 'string' || code.trim().length < 4) {
+    return res.status(400).json({ error: 'الكود مطلوب (4 حروف على الأقل)' });
+  }
+  const c = code.trim().toUpperCase();
+  if (codes.find(x => x.code === c)) return res.status(409).json({ error: 'الكود موجود بالفعل' });
+  codes.push({ code: c, plan: String(plan || 'monthly'), maxUses: Number(maxUses || 0), uses: 0, active: true, createdAt: Date.now() });
+  saveData();
+  res.json({ success: true });
+});
+
+app.get('/api/admin/codes', requireAuth, (req, res) => res.json({ data: codes }));
+
+app.delete('/api/admin/codes/:code', requireAuth, (req, res) => {
+  const c = String(req.params.code).toUpperCase();
+  const index = codes.findIndex(x => x.code === c);
+  if (index === -1) return res.status(404).json({ error: 'الكود غير موجود' });
+  codes.splice(index, 1);
+  saveData();
+  res.json({ success: true });
+});
+
+// التحقق من كود (من التطبيق)
+app.post('/api/codes/validate', (req, res) => {
+  const { code, deviceId } = req.body || {};
+  if (!code || !deviceId) return res.status(400).json({ error: 'code و deviceId مطلوبين' });
+  const c = String(code).trim().toUpperCase();
+  const did = String(deviceId);
+  const found = codes.find(x => x.code === c);
+  if (!found) return res.json({ valid: false, reason: 'الكود غير صحيح' });
+  if (!found.active) return res.json({ valid: false, reason: 'الكود معطّل' });
+  if (found.maxUses > 0 && found.uses >= found.maxUses) return res.json({ valid: false, reason: 'الكود استُخدم الحد الأقصى' });
+  found.uses += 1;
+  users[did] = { plan: found.plan, activatedAt: Date.now(), code: found.code };
+  saveData();
+  res.json({ valid: true, plan: found.plan });
+});
+
+// هل الجهاز مشترك؟
+app.get('/api/subscription', (req, res) => {
+  const did = String(req.query.deviceId || '');
+  if (!did) return res.json({ subscribed: false });
+  res.json({ subscribed: !!users[did], plan: (users[did] && users[did].plan) || null });
 });
 
 // Requests

@@ -15,6 +15,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import * as FileSystem from 'expo-file-system/legacy';
+import {
+  getLocalVideoUri, downloadVideo, deleteLocalVideo, getDownloadsList,
+  isSubscribed, activateCode, registerDownload, removeDownload, isWeb,
+} from './storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -33,6 +38,44 @@ function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// ============ زر التحميل ============
+function DownloadButton({
+  video, premium, progress, onPress, t,
+}: {
+  video: VideoItem;
+  premium: boolean;
+  progress?: number;
+  onPress: () => void;
+  t: Theme;
+}) {
+  const isDownloading = progress !== undefined;
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      style={[
+        styles.downloadBtn,
+        { backgroundColor: isDownloading ? t.mint : premium ? t.btn : t.mint, borderColor: t.border },
+      ]}
+      onPress={onPress}
+    >
+      {isDownloading ? (
+        <View style={styles.downloadProgressTrack}>
+          <View
+            style={[
+              styles.downloadProgressFill,
+              { width: `${Math.round((progress as number) * 100)}%`, backgroundColor: t.accent },
+            ]}
+          />
+        </View>
+      ) : (
+        <Text style={[styles.downloadBtnText, { color: premium ? '#FFFFFF' : t.textSecondary }]}>
+          {premium ? '⬇ تحميل' : '🔒 تحميل'}
+        </Text>
+      )}
+    </TouchableOpacity>
+  );
 }
 
 // ============ THEMES ============
@@ -138,6 +181,20 @@ function PlayerScreen({
     p.timeUpdateEventInterval = 0.5;
     p.play();
   });
+
+  // لو الفيديو محمل على الجهاز → نشغله من الملف المحلي (بدون نت)
+  const [localUri, setLocalUri] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const uri = await getLocalVideoUri(video.id);
+      if (!cancelled && uri && player) {
+        setLocalUri(uri);
+        try { player.replace({ uri }); } catch (e) { /* تجاهل */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [video.id]);
 
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
   const timeUpdate = useEvent(player, 'timeUpdate');
@@ -267,6 +324,12 @@ export default function App() {
   const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
   const [theme, setTheme] = useState<ThemeKey>('light');
   const [requestText, setRequestText] = useState('');
+  const [premium, setPremium] = useState(false);
+  const [downloads, setDownloads] = useState<any[]>([]);
+  const [showActivation, setShowActivation] = useState(false);
+  const [activationCode, setActivationCode] = useState('');
+  const [activationMsg, setActivationMsg] = useState('');
+  const [downloading, setDownloading] = useState<Record<string, number>>({});
   const [requests, setRequests] = useState([
     { id: 1, text: 'شرح المعادلات من الصفر', status: 'قيد المراجعة' },
     { id: 2, text: 'الجدول الدوري مبسط', status: 'تم النشر' },
@@ -333,6 +396,73 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // حالة الاشتراك + قائمة التحميلات
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sub = await isSubscribed();
+        if (!cancelled) setPremium(sub);
+        const dl = await getDownloadsList();
+        if (!cancelled) setDownloads(dl);
+      } catch (e) { /* تجاهل */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const refreshDownloads = useCallback(async () => {
+    try { setDownloads(await getDownloadsList()); } catch (e) { /* تجاهل */ }
+  }, []);
+
+  // ============ التحميل ============
+  const handleDownload = useCallback(async (video: VideoItem) => {
+    if (downloading[video.id] !== undefined) return;
+    setDownloading((d) => ({ ...d, [video.id]: 0 }));
+    try {
+      await downloadVideo(video, (p) =>
+        setDownloading((d) => ({ ...d, [video.id]: p }))
+      );
+      // نجيب الحجم ونسجل على السيرفر
+      const uri = await getLocalVideoUri(video.id);
+      let size = 0;
+      try {
+        const info = await FileSystem.getInfoAsync(uri!);
+        if (info.exists && (info as any).size) size = (info as any).size;
+      } catch (e) { /* تجاهل */ }
+      await registerDownload(video.id, video.title, size);
+      await refreshDownloads();
+    } catch (e) {
+      alert('⚠️ فشل تحميل الفيديو — حاول تاني');
+    } finally {
+      setDownloading((d) => { const n = { ...d }; delete n[video.id]; return n; });
+    }
+  }, [downloading, refreshDownloads]);
+
+  const handleDeleteDownload = useCallback(async (item: any) => {
+    try {
+      await deleteLocalVideo(item.videoId);
+      await removeDownload(item.id);
+      await refreshDownloads();
+    } catch (e) { /* تجاهل */ }
+  }, [refreshDownloads]);
+
+  // التحقق من كود
+  const handleActivate = useCallback(async () => {
+    if (activationCode.trim().length < 4) {
+      setActivationMsg('⚠️ الكود قصير جداً');
+      return;
+    }
+    setActivationMsg('⏳ جاري التحقق...');
+    const res = await activateCode(activationCode.trim());
+    if (res.valid) {
+      setActivationMsg('✅ تم تفعيل الاشتراك! استمتع');
+      setPremium(true);
+      setActivationCode('');
+    } else {
+      setActivationMsg('❌ ' + (res.reason || 'الكود غير صحيح'));
+    }
+  }, [activationCode]);
 
   const t = themes[theme];
 
@@ -405,6 +535,16 @@ export default function App() {
                   <Text style={[styles.videoTitle, { color: t.text }]} numberOfLines={2}>{video.title}</Text>
                   <Text style={[styles.videoViews, { color: t.textSecondary }]}>{video.views} مشاهدة</Text>
                 </View>
+                <DownloadButton
+                  video={video}
+                  premium={premium}
+                  progress={downloading[video.id]}
+                  t={t}
+                  onPress={() => {
+                    if (!premium) { setActiveTab('activation'); return; }
+                    handleDownload(video);
+                  }}
+                />
               </TouchableOpacity>
             ))}
           </View>
@@ -585,6 +725,64 @@ export default function App() {
     </ScrollView>
   );
 
+  // ============ التحميلات ============
+  const renderDownloads = () => {
+    const totalSize = downloads.reduce((a, d) => a + (Number(d.size) || 0), 0);
+    return (
+      <ScrollView style={[styles.container, { backgroundColor: t.bg }]} showsVerticalScrollIndicator={false}>
+        <Text style={[styles.pageTitle, { color: t.text }]}>التحميلات</Text>
+        <Text style={[styles.subSub, { color: t.textSecondary }]}>
+          {downloads.length} فيديو • {(totalSize / 1024 / 1024).toFixed(1)} MB
+        </Text>
+        {downloads.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Text style={{ fontSize: 44 }}>📥</Text>
+            <Text style={[styles.emptyText, { color: t.textSecondary }]}>مفيش فيديوهات محملة لسه</Text>
+            <Text style={[styles.emptyHint, { color: t.textSecondary }]}>اضغط زر ⬇ على أي فيديو (للمشتركين)</Text>
+          </View>
+        ) : (
+          downloads.map((item: any) => (
+            <View key={item.id} style={[styles.downloadCard, { backgroundColor: t.card, borderColor: t.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.downloadTitle, { color: t.text }]} numberOfLines={2}>{item.title}</Text>
+                <Text style={[styles.downloadMeta, { color: t.textSecondary }]}>
+                  {((Number(item.size) || 0) / 1024 / 1024).toFixed(1)} MB
+                </Text>
+              </View>
+              <TouchableOpacity style={[styles.downloadDel, { backgroundColor: t.mint }]} onPress={() => handleDeleteDownload(item)}>
+                <Text style={{ color: '#D32F2F', fontWeight: '700' }}>حذف</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+    );
+  };
+
+  // ============ تفعيل الاشتراك ============
+  const renderActivation = () => (
+    <ScrollView style={[styles.container, { backgroundColor: t.bg }]} showsVerticalScrollIndicator={false}>
+      <Text style={[styles.pageTitle, { color: t.text }]}>تفعيل الاشتراك</Text>
+      <Text style={[styles.subSub, { color: t.textSecondary }]}>اكتب الكود اللي استلمته</Text>
+      <TextInput
+        style={[styles.codeInput, { backgroundColor: t.card, color: t.text, borderColor: t.border }]}
+        placeholder="مثال: AHMED2026"
+        placeholderTextColor={t.textSecondary}
+        autoCapitalize="characters"
+        value={activationCode}
+        onChangeText={setActivationCode}
+      />
+      <TouchableOpacity style={[styles.submitBtn, { backgroundColor: t.accent }]} onPress={handleActivate}>
+        <Text style={styles.submitBtnText}>تفعيل</Text>
+      </TouchableOpacity>
+      {activationMsg ? (
+        <Text style={[styles.activationMsg, { color: activationMsg.indexOf('✅') === 0 ? '#43A047' : '#D32F2F' }]}>{activationMsg}</Text>
+      ) : null}
+      <View style={styles.bottomPadding} />
+    </ScrollView>
+  );
+
   // ============ MAIN ============
   return (
     <View style={[styles.container, { backgroundColor: t.bg }]}>
@@ -594,13 +792,16 @@ export default function App() {
       {activeTab === 'folder' && selectedFolder && renderFolder()}
       {activeTab === 'requests' && renderRequests()}
       {activeTab === 'subscription' && renderSubscription()}
+      {activeTab === 'downloads' && renderDownloads()}
+      {activeTab === 'activation' && renderActivation()}
       {activeTab === 'more' && renderMore()}
 
       <View style={[styles.tabBar, { backgroundColor: t.tabBar, borderTopColor: t.border }]}>
         {[
           { id: 'home', icon: '🏠', label: 'الرئيسية' },
-          { id: 'requests', icon: '📩', label: 'طلباتكم' },
+          { id: 'downloads', icon: '⬇️', label: 'التحميلات' },
           { id: 'subscription', icon: '⭐', label: 'الاشتراك' },
+          { id: 'activation', icon: '🔑', label: 'تفعيل' },
           { id: 'more', icon: '☰', label: 'المزيد' },
         ].map((tab) => (
           <TouchableOpacity
@@ -789,6 +990,28 @@ const styles = StyleSheet.create({
   },
   moreIcon: { fontSize: 20, marginRight: 12 },
   moreText: { fontSize: 16 },
+  // التحميلات
+  downloadCard: {
+    flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 6,
+    padding: 14, borderRadius: 16, borderWidth: 1,
+  },
+  downloadTitle: { fontSize: 14, fontWeight: '600' },
+  downloadMeta: { fontSize: 12, marginTop: 4 },
+  downloadDel: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  downloadBtn: {
+    margin: 10, marginTop: 0, paddingVertical: 8, borderRadius: 10,
+    alignItems: 'center', borderWidth: 1,
+  },
+  downloadBtnText: { fontSize: 12, fontWeight: '700' },
+  downloadProgressTrack: { width: 90, height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: '#E0E0E0' },
+  downloadProgressFill: { height: '100%' },
+  emptyBox: { alignItems: 'center', marginTop: 60, paddingHorizontal: 20 },
+  emptyHint: { fontSize: 12, textAlign: 'center', marginTop: 10 },
+  codeInput: {
+    marginHorizontal: 16, padding: 14, borderRadius: 14, fontSize: 18, fontWeight: '700',
+    textAlign: 'center', letterSpacing: 2, borderWidth: 1,
+  },
+  activationMsg: { marginHorizontal: 16, marginTop: 14, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   // Tab Bar
   tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingBottom: 8, paddingTop: 8 },
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
