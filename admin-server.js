@@ -429,7 +429,7 @@ const B2_BUCKET = process.env.B2_BUCKET || '';
 const B2_ENDPOINT = process.env.B2_ENDPOINT || '';
 const B2_PUBLIC_URL = (process.env.B2_PUBLIC_URL || '').replace(/\/+$/, '');
 const B2_PREFIX = process.env.B2_PREFIX || 'videos/';
-const useB2 = !!(B2_KEY_ID && B2_APP_KEY && B2_BUCKET && B2_ENDPOINT && B2_PUBLIC_URL);
+const useB2 = !!(B2_KEY_ID && B2_APP_KEY && B2_BUCKET && B2_ENDPOINT); // B2_PUBLIC_URL مش مطلوب (الدلو خاص)
 
 let s3 = null;
 let PutObjectCommand = null;
