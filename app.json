@@ -5,11 +5,7 @@
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#1C1C1C"
-    },
+    "backgroundColor": "#1C1C1C",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
