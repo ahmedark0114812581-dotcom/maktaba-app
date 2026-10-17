@@ -13,7 +13,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://cube-sunrise-burke-language.trycloudflare.com"
+        "EXPO_PUBLIC_API_URL": "https://drawings-class-taught-urls.trycloudflare.com"
       }
     },
     "production": {
@@ -21,7 +21,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://cube-sunrise-burke-language.trycloudflare.com"
+        "EXPO_PUBLIC_API_URL": "https://drawings-class-taught-urls.trycloudflare.com"
       }
     }
   }

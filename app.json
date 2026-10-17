@@ -23,6 +23,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "dac765a2-ee1a-4960-8744-10aec4b7607f"
+      }
+    },
+    "owner": "ahmedgr"
   }
 }
