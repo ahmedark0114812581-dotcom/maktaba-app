@@ -273,12 +273,19 @@
         <div class="card" style="flex-direction:column;align-items:stretch">
           <div class="section-header" style="margin-top:0">إضافة فيديو جديد</div>
           <select class="input" id="videoFile">
-            <option value="">اختر الملف</option>
+            <option value="">اختر الملف (المجلد)</option>
             ${files.map(f => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('')}
           </select>
           <input class="input" id="newVideoTitle" placeholder="عنوان الفيديو">
-          <input class="input" id="newVideoUrl" placeholder="رابط الفيديو (mp4)">
-          <button class="btn" onclick="addVideo()">إضافة فيديو</button>
+
+          <div class="section-header" style="margin-top:4px">الفيديو من جهازك</div>
+          <input type="file" id="videoUploadInput" accept="video/*" class="input">
+          <button class="btn" style="background:#1565C0" onclick="uploadVideo()">١) ارفع الفيديو على السيرفر</button>
+          <div id="uploadStatus" class="card-sub" style="margin-top:6px"></div>
+
+          <div class="section-header" style="margin-top:12px">أو رابط جاهز</div>
+          <input class="input" id="newVideoUrl" placeholder="رابط الفيديو — بيتعبى تلقائياً بعد الرفع">
+          <button class="btn" onclick="addVideo()">٢) أضف الفيديو للتطبيق</button>
         </div>
         <div class="section-header">كل الفيديوهات (${videos.length})</div>
         ${paginatedVideos.length === 0 ? '<div class="empty-state">لا توجد فيديوهات</div>' : paginatedVideos.map((v, i) => {
@@ -361,6 +368,28 @@
       await fetch('/api/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), count: 0 }) });
       showToast('تمت الإضافة');
       render();
+    }
+
+    async function uploadVideo() {
+      const input = document.getElementById('videoUploadInput');
+      const status = document.getElementById('uploadStatus');
+      if (!input || !input.files || !input.files[0]) { showToast('اختر فيديو الأول'); return; }
+      const f = input.files[0];
+      if (f.size > 500 * 1024 * 1024) { showToast('الملف أكبر من 500 ميجا'); return; }
+      const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+      const fd = new FormData();
+      fd.append('video', f);
+      status.textContent = '⏳ جاري رفع ' + sizeMB + ' ميجا... (ممكن ياخد وقت على النت البطيء)';
+      try {
+        const r = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (!r.ok) { status.textContent = '❌ ' + (data.error || 'فشل الرفع'); showToast('فشل الرفع'); return; }
+        document.getElementById('newVideoUrl').value = data.url;
+        status.textContent = '✅ اترفع! (' + sizeMB + ' ميجا) — دلوقتي اضغط «٢) أضف الفيديو للتطبيق»';
+        showToast('تم رفع الفيديو');
+      } catch (e) {
+        status.textContent = '❌ فشل الاتصال بالسيرفر';
+      }
     }
 
     async function addVideo() {

@@ -20,6 +20,13 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
+// الفيديوهات المرفوعة على السيرفر بتتخزن كرابط نسبي (/uploads/x.mp4) — هنا بنحوّله لرابط كامل
+function resolveUrl(u: string): string {
+  if (!u) return u;
+  if (/^https?:\/\//i.test(u)) return u;
+  return `${API_URL}${u.startsWith('/') ? '' : '/'}${u}`;
+}
+
 // ============ THEMES ============
 const themes = {
   light: {
@@ -92,6 +99,10 @@ const sampleVideos = [
 
 type VideoItem = typeof sampleVideos[0];
 
+type FolderItem = { id: number; name: string; count: number; color: string };
+
+const FOLDER_COLORS = ['#FF2F93', '#00D4FF', '#FFD700', '#00FF88', '#FF6B35', '#9B59B6', '#2E7D32', '#1565C0', '#E91E63', '#009688'];
+
 const HOME_TABS = [
   { id: 'all', label: 'الكل' },
   { id: 'hot', label: 'رائج' },
@@ -114,7 +125,7 @@ function PlayerScreen({
 }) {
   const videoViewRef = useRef<VideoView>(null);
 
-  const player = useVideoPlayer({ uri: video.url }, (p) => {
+  const player = useVideoPlayer({ uri: resolveUrl(video.url) }, (p) => {
     p.loop = false;
     p.timeUpdateEventInterval = 0.5;
     p.play();
@@ -241,7 +252,7 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [homeTab, setHomeTab] = useState<'all' | 'hot' | 'new'>('all');
-  const [selectedFolder, setSelectedFolder] = useState<typeof folders[0] | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<FolderItem | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null);
   const [theme, setTheme] = useState<ThemeKey>('light');
   const [requestText, setRequestText] = useState('');
@@ -271,14 +282,55 @@ export default function App() {
 
   const bannerSource = bannerUri ? { uri: bannerUri } : require('./assets/banner.png');
 
+  // بيانات الملفات والفيديوهات: من السيرفر لو فيها فيديوهات، وإلا البيانات المدمجة
+  const [foldersData, setFoldersData] = useState<FolderItem[]>(folders);
+  const [videosData, setVideosData] = useState<VideoItem[]>(sampleVideos);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [fRes, vRes] = await Promise.all([
+          fetch(`${API_URL}/api/files`),
+          fetch(`${API_URL}/api/videos?limit=200`),
+        ]);
+        if (!fRes.ok || !vRes.ok) return;
+        const fJson = await fRes.json();
+        const vJson = await vRes.json();
+        const vids: any[] = Array.isArray(vJson) ? vJson : (vJson.data || []);
+        if (cancelled || vids.length === 0) return; // مفيش فيديوهات على السيرفر → نفضل على البيانات المدمجة
+        const flist: any[] = Array.isArray(fJson) ? fJson : [];
+        setFoldersData(
+          flist.map((f, i) => ({
+            id: Number(f.id),
+            name: String(f.name ?? ''),
+            count: Number(f.count ?? 0),
+            color: FOLDER_COLORS[i % FOLDER_COLORS.length],
+          }))
+        );
+        setVideosData(
+          vids.map((v) => ({
+            id: Number(v.id),
+            title: String(v.title ?? ''),
+            duration: String(v.duration ?? '0:00'),
+            views: String(v.views ?? 0),
+            folderId: Number(v.folderId ?? v.fileId ?? 0),
+            url: String(v.url ?? ''),
+            isVertical: Boolean(v.isVertical),
+          }))
+        );
+      } catch (e) { /* نستخدم البيانات المدمجة */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const t = themes[theme];
 
   const shownFolders = useMemo(() => {
-    const list = [...folders];
+    const list = [...foldersData];
     if (homeTab === 'hot') list.sort((a, b) => b.count - a.count);
     if (homeTab === 'new') list.sort((a, b) => b.id - a.id);
     return list;
-  }, [homeTab]);
+  }, [homeTab, foldersData]);
 
   // ============ SPLASH ============
   if (showSplash) {
@@ -298,7 +350,7 @@ export default function App() {
       <PlayerScreen
         key={selectedVideo.id}
         video={selectedVideo}
-        allVideos={sampleVideos}
+        allVideos={videosData}
         t={t}
         onBack={() => {
           setSelectedVideo(null);
@@ -312,7 +364,7 @@ export default function App() {
   // ============ FOLDER ============
   const renderFolder = () => {
     if (!selectedFolder) return null;
-    const folderVideos = sampleVideos.filter((v) => v.folderId === selectedFolder.id);
+    const folderVideos = videosData.filter((v) => v.folderId === selectedFolder.id);
     return (
       <ScrollView style={[styles.container, { backgroundColor: t.bg }]} showsVerticalScrollIndicator={false}>
         <View style={styles.folderHeader}>

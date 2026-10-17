@@ -53,12 +53,13 @@ app.use((req, res, next) => {
 
 // Rate limiting (simple in-memory)
 const rateLimitStore = {};
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 1000); // 1000 طلب / 15 دقيقة لكل IP
 app.use('/api/', (req, res, next) => {
   const ip = req.ip;
   const now = Date.now();
   if (!rateLimitStore[ip]) rateLimitStore[ip] = [];
   rateLimitStore[ip] = rateLimitStore[ip].filter(t => now - t < 15 * 60 * 1000);
-  if (rateLimitStore[ip].length > 100) return res.status(429).json({ error: 'طلبات كثيرة جداً، حاول لاحقاً' });
+  if (rateLimitStore[ip].length > RATE_LIMIT_MAX) return res.status(429).json({ error: 'طلبات كثيرة جداً، حاول لاحقاً' });
   rateLimitStore[ip].push(now);
   next();
 });
@@ -164,13 +165,20 @@ function validateFile(data) {
   return null;
 }
 
+// رابط الفيديو: إما رابط كامل (http/https) أو مسار نسبي من السيرفر (/uploads/x.mp4)
+function isValidVideoUrl(u) {
+  if (typeof u !== 'string' || !u.trim()) return false;
+  const v = u.trim();
+  if (v.startsWith('/')) return true;
+  try { new URL(v); return true; } catch { return false; }
+}
+
 function validateVideo(data) {
   if (!data.title || typeof data.title !== 'string' || data.title.trim().length < 2) {
     return 'عنوان الفيديو مطلوب (2 أحرف على الأقل)';
   }
   if (data.title.length > 200) return 'عنوان الفيديو طويل جداً (200 حرف كحد أقصى)';
-  if (!data.url || typeof data.url !== 'string') return 'رابط الفيديو مطلوب';
-  try { new URL(data.url); } catch { return 'رابط الفيديو غير صالح'; }
+  if (!isValidVideoUrl(data.url)) return 'رابط الفيديو مطلوب (رابط كامل أو مسار /uploads/...)';
   if (data.url.length > 2000) return 'رابط الفيديو طويل جداً';
   return null;
 }
