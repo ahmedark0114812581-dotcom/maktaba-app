@@ -515,8 +515,9 @@
     }
 
     function onUrlTyped() {
-      const u = (document.getElementById('newVideoUrl') || {}).value || '';
-      if (!/^https?:\/\//i.test(u)) { pickedVideoDuration = '0:00'; return; }
+      const u = ((document.getElementById('newVideoUrl') || {}).value || '').trim();
+      if (!u) { pickedVideoDuration = '0:00'; return; }
+      // بيشتغل مع الروابط الكاملة والنسبية (/uploads/x.mp4) — المتصفح بيحل النسبي لوحده
       readDurationFromUrl(u, (d) => { if (d) pickedVideoDuration = d; });
     }
 
@@ -535,7 +536,15 @@
         const data = await r.json();
         if (!r.ok) { status.textContent = '❌ ' + (data.error || 'فشل الرفع'); showToast('فشل الرفع'); return; }
         document.getElementById('newVideoUrl').value = data.url;
-        status.textContent = '✅ اترفع! (' + sizeMB + ' ميجا) — دلوقتي اضغط «٢) أضف الفيديو للتطبيق»';
+        status.textContent = '✅ اترفع! (' + sizeMB + ' ميجا) — بقرا المدة...';
+        // نتأكد من المدة من الملف المرفوع نفسه (احتياطي لو القراءة الأولى فشلت)
+        readDurationFromUrl(data.url, (d) => {
+          if (d) pickedVideoDuration = d;
+          if (status) {
+            status.textContent = '✅ اترفع! (' + sizeMB + ' ميجا) المدة: ' + (pickedVideoDuration || '0:00')
+              + ' — دلوقتي اضغط «٢) أضف الفيديو للتطبيق»';
+          }
+        });
         showToast('تم رفع الفيديو');
       } catch (e) {
         status.textContent = '❌ فشل الاتصال بالسيرفر';

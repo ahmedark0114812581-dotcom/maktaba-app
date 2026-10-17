@@ -325,31 +325,43 @@ app.patch('/api/videos/:id', requireAuth, (req, res) => {
   res.json(videos[index]);
 });
 
-app.delete('/api/videos/:id', requireAuth, (req, res) => {
+app.delete('/api/videos/:id', requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const index = videos.findIndex(v => v.id === id);
   if (index === -1) return res.status(404).json({ error: 'الفيديو غير موجود' });
   const removed = videos.splice(index, 1)[0];
 
-  // امسح الملف المرفوع من الديسك كمان (لو الفيديو كان مرفوع على السيرفر)
   let fileDeleted = false;
-  try {
-    const u = String(removed.url || '');
-    if (u.startsWith('/uploads/')) {
+  const u = String(removed.url || '');
+
+  // ⚠️ نتأكد إن مفيش فيديو تاني بيستخدم نفس الملف قبل ما نمسحه
+  const stillUsed = videos.some(v => String(v.url || '') === u);
+
+  // 1) ملف على السحابة (B2)
+  if (!stillUsed && s3 && B2_PUBLIC_URL && u.indexOf(B2_PUBLIC_URL) === 0) {
+    try {
+      fileDeleted = await deleteFromB2(u);
+    } catch (e) {
+      console.error('تعذر مسح الملف من B2:', e.message);
+    }
+  }
+  // 2) ملف على القرص المحلي
+  else if (!stillUsed && u.startsWith('/uploads/')) {
+    try {
       const uploadsDir = path.join(__dirname, 'uploads');
       const fp = path.resolve(path.join(__dirname, u.replace(/^\/+/, '')));
       if (fp.startsWith(uploadsDir) && fs.existsSync(fp)) {
         fs.unlinkSync(fp);
         fileDeleted = true;
       }
+    } catch (e) {
+      console.error('تعذر مسح ملف الفيديو:', e.message);
     }
-  } catch (e) {
-    console.error('تعذر مسح ملف الفيديو:', e.message);
   }
 
   files.forEach(f => { f.count = videos.filter(v => v.fileId === f.id).length; });
   saveData();
-  res.json({ success: true, fileDeleted });
+  res.json({ success: true, fileDeleted, fileKept: stillUsed });
 });
 
 // Requests
@@ -394,10 +406,75 @@ const upload = multer({
   }
 });
 
-app.post('/api/upload', requireAuth, upload.single('video'), (req, res) => {
+// ============ التخزين السحابي (Backblaze B2) ============
+const B2_KEY_ID = process.env.B2_KEY_ID || '';
+const B2_APP_KEY = process.env.B2_APP_KEY || '';
+const B2_BUCKET = process.env.B2_BUCKET || '';
+const B2_ENDPOINT = process.env.B2_ENDPOINT || '';
+const B2_PUBLIC_URL = (process.env.B2_PUBLIC_URL || '').replace(/\/+$/, '');
+const B2_PREFIX = process.env.B2_PREFIX || 'videos/';
+const useB2 = !!(B2_KEY_ID && B2_APP_KEY && B2_BUCKET && B2_ENDPOINT && B2_PUBLIC_URL);
+
+let s3 = null;
+let PutObjectCommand = null;
+let DeleteObjectCommand = null;
+
+if (useB2) {
+  try {
+    const aws = require('@aws-sdk/client-s3');
+    PutObjectCommand = aws.PutObjectCommand;
+    DeleteObjectCommand = aws.DeleteObjectCommand;
+    s3 = new aws.S3Client({
+      region: process.env.B2_REGION || 'auto',
+      endpoint: 'https://' + B2_ENDPOINT,
+      credentials: { accessKeyId: B2_KEY_ID, secretAccessKey: B2_APP_KEY },
+    });
+    console.log('☁️  التخزين السحابي (Backblaze B2) مفعّل — الدلو: ' + B2_BUCKET);
+  } catch (e) {
+    console.error('❌ تعذر تحميل مكتبة التخزين السحابي:', e.message);
+    s3 = null;
+  }
+} else {
+  console.log('💾 التخزين محلي (B2 مش مضبوط في .env)');
+}
+
+async function uploadToB2(localPath, filename, mimetype) {
+  if (!s3) throw new Error('B2 مش مفعّل');
+  const key = B2_PREFIX + filename;
+  await s3.send(new PutObjectCommand({
+    Bucket: B2_BUCKET,
+    Key: key,
+    Body: fs.createReadStream(localPath),
+    ContentType: mimetype || 'video/mp4',
+  }));
+  return { key, url: B2_PUBLIC_URL + '/' + key };
+}
+
+async function deleteFromB2(url) {
+  if (!s3) return false;
+  const u = String(url || '');
+  if (!B2_PUBLIC_URL || u.indexOf(B2_PUBLIC_URL) !== 0) return false;
+  const key = u.slice(B2_PUBLIC_URL.length).replace(/^\/+/, '');
+  if (!key) return false;
+  await s3.send(new DeleteObjectCommand({ Bucket: B2_BUCKET, Key: key }));
+  return true;
+}
+
+app.post('/api/upload', requireAuth, upload.single('video'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'لم يتم رفع ملف' });
+
+  if (s3) {
+    try {
+      const out = await uploadToB2(req.file.path, req.file.filename, req.file.mimetype);
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* تجاهل */ }
+      return res.json({ success: true, url: out.url, filename: req.file.filename, storage: 'b2' });
+    } catch (e) {
+      console.error('فشل الرفع على B2، هنرجع للتخزين المحلي:', e.message);
+    }
+  }
+
   const videoUrl = `/uploads/${req.file.filename}`;
-  res.json({ success: true, url: videoUrl, filename: req.file.filename });
+  res.json({ success: true, url: videoUrl, filename: req.file.filename, storage: 'local' });
 });
 
 // ===== صورة بنر التطبيق =====
