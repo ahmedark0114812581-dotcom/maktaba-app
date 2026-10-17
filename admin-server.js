@@ -49,6 +49,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// لوحة التحكم على الجذر — الملف اسمه admin.html عشان ميتعارضش مع واجهة تطبيق Expo
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+
 // Data storage
 const DATA_FILE = path.join(__dirname, 'data.json');
 
