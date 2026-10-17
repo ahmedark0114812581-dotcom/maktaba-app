@@ -30,7 +30,11 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  res.setHeader('Content-Security-Policy', "default-src 'self'");
+  // CSP لازم تسمح بالـ inline لأن لوحة التحكم ملف واحد فيه سكربت وأنماط مدمجة
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'"
+  );
   next();
 });
 
@@ -361,7 +365,20 @@ app.use((err, req, res, next) => {
 // 404 handler
 app.use((req, res) => res.status(404).json({ error: 'غير موجود' }));
 
-app.listen(PORT, '0.0.0.0', () => {
+// الاستماع على IPv4 و IPv6 معاً — عشان localhost ميحاولش IPv6 ويستنى
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Admin panel: http://localhost:${PORT}`);
+});
+
+server.on('error', (e) => {
+  if (e.code === 'EAFNOSUPPORT' || e.code === 'EADDRNOTAVAIL' || e.code === 'EADDRINUSE') {
+    console.warn('تعذر التشغيل المزدوج (' + e.code + ') — هنشتغل على IPv4 بس');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT} (IPv4 only)`);
+      console.log(`Admin panel: http://localhost:${PORT}`);
+    });
+  } else {
+    console.error('خطأ في تشغيل السيرفر:', e.message);
+  }
 });
