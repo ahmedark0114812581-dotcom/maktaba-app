@@ -27,6 +27,14 @@ function resolveUrl(u: string): string {
   return `${API_URL}${u.startsWith('/') ? '' : '/'}${u}`;
 }
 
+// تحويل الثواني لصيغة m:ss
+function formatTime(sec: number): string {
+  if (!isFinite(sec) || sec <= 0) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 // ============ THEMES ============
 const themes = {
   light: {
@@ -220,6 +228,9 @@ function PlayerScreen({
         <Text style={[styles.playerTitle, { color: t.text }]}>{video.title}</Text>
         <Text style={[styles.playerViews, { color: t.textSecondary }]}>
           {video.views} مشاهدة{video.isVertical ? ' • 📱 عمودي' : ''}
+        </Text>
+        <Text style={[styles.playerTime, { color: t.accent }]}>
+          ⏱ {formatTime(currentTime)}{duration > 0 ? ` / ${formatTime(duration)}` : ''}
         </Text>
       </View>
 
@@ -736,6 +747,7 @@ const styles = StyleSheet.create({
   playerInfo: { padding: 16 },
   playerTitle: { fontSize: 18, fontWeight: 'bold' },
   playerViews: { fontSize: 14, marginTop: 4 },
+  playerTime: { fontSize: 14, fontWeight: '700', marginTop: 6 },
   suggestedTitle: { fontSize: 17, fontWeight: 'bold', margin: 16 },
   suggestedGrid: { paddingHorizontal: 10 },
   suggestedCard: { width: CARD_W, margin: 6 },

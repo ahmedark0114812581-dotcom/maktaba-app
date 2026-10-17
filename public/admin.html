@@ -279,12 +279,12 @@
           <input class="input" id="newVideoTitle" placeholder="عنوان الفيديو">
 
           <div class="section-header" style="margin-top:4px">الفيديو من جهازك</div>
-          <input type="file" id="videoUploadInput" accept="video/*" class="input">
+          <input type="file" id="videoUploadInput" accept="video/*" class="input" onchange="onVideoPicked()">
           <button class="btn" style="background:#1565C0" onclick="uploadVideo()">١) ارفع الفيديو على السيرفر</button>
           <div id="uploadStatus" class="card-sub" style="margin-top:6px"></div>
 
           <div class="section-header" style="margin-top:12px">أو رابط جاهز</div>
-          <input class="input" id="newVideoUrl" placeholder="رابط الفيديو — بيتعبى تلقائياً بعد الرفع">
+          <input class="input" id="newVideoUrl" placeholder="رابط الفيديو — بيتعبى تلقائياً بعد الرفع" onchange="onUrlTyped()">
           <button class="btn" onclick="addVideo()">٢) أضف الفيديو للتطبيق</button>
         </div>
         <div class="section-header">كل الفيديوهات (${videos.length})</div>
@@ -370,6 +370,57 @@
       render();
     }
 
+    // ===== قراءة مدة الفيديو الحقيقية =====
+    let pickedVideoDuration = '0:00';
+
+    function formatDuration(sec) {
+      if (!isFinite(sec) || sec <= 0) return '0:00';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function readDurationFromFile(file, onDone) {
+      const url = URL.createObjectURL(file);
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => { const d = formatDuration(v.duration); URL.revokeObjectURL(url); onDone(d); };
+      v.onerror = () => { URL.revokeObjectURL(url); onDone(null); };
+      v.src = url;
+    }
+
+    function readDurationFromUrl(u, onDone) {
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => onDone(formatDuration(v.duration));
+      v.onerror = () => onDone(null);
+      v.src = u;
+    }
+
+    function onVideoPicked() {
+      const input = document.getElementById('videoUploadInput');
+      const status = document.getElementById('uploadStatus');
+      pickedVideoDuration = '0:00';
+      if (!input || !input.files || !input.files[0]) return;
+      const f = input.files[0];
+      const mb = (f.size / 1024 / 1024).toFixed(1);
+      if (status) status.textContent = '⏱️ بقرا المدة... (' + mb + ' ميجا)';
+      readDurationFromFile(f, (d) => {
+        pickedVideoDuration = d || '0:00';
+        if (status) {
+          status.textContent = d
+            ? '✅ المدة: ' + d + ' • الحجم: ' + mb + ' ميجا — دلوقتي اضغط «١) ارفع الفيديو»'
+            : '⚠️ مقدرتش أقرا المدة (' + mb + ' ميجا) — هتتسجل 0:00';
+        }
+      });
+    }
+
+    function onUrlTyped() {
+      const u = (document.getElementById('newVideoUrl') || {}).value || '';
+      if (!/^https?:\/\//i.test(u)) { pickedVideoDuration = '0:00'; return; }
+      readDurationFromUrl(u, (d) => { if (d) pickedVideoDuration = d; });
+    }
+
     async function uploadVideo() {
       const input = document.getElementById('videoUploadInput');
       const status = document.getElementById('uploadStatus');
@@ -397,8 +448,21 @@
       const url = document.getElementById('newVideoUrl').value;
       const fileId = document.getElementById('videoFile').value;
       if (!title || !url || !fileId) { showToast('املأ كل الحقول'); return; }
-      await fetch('/api/videos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), url: url.trim(), fileId: Number(fileId), views: 0, duration: '0:00' }) });
-      showToast('تمت الإضافة');
+      const res = await fetch('/api/videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          url: url.trim(),
+          fileId: Number(fileId),
+          views: 0,
+          duration: pickedVideoDuration || '0:00'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'فشل الإضافة'); return; }
+      showToast('تمت الإضافة ✅ (المدة ' + (data.duration || '0:00') + ')');
+      pickedVideoDuration = '0:00';
       render();
     }
 
