@@ -4,9 +4,9 @@
   "main": "index.tsx",
   "dependencies": {
     "expo": "~57.0.29",
-    "expo-av": "^16.0.8",
     "expo-dev-client": "~57.0.20",
     "expo-status-bar": "~57.0.1",
+    "expo-video": "~57.0.5",
     "express": "^5.3.0",
     "multer": "^2.4.0",
     "react": "19.2.3",
