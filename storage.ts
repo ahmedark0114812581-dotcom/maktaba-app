@@ -159,3 +159,43 @@ export async function removeDownload(id: number): Promise<void> {
 export function isWeb(): boolean {
   return Platform.OS === 'web';
 }
+
+// ============ قفل البصمة ============
+export async function isLockEnabled(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  try {
+    const file = FileSystem.documentDirectory + 'lock.enabled';
+    const info = await FileSystem.getInfoAsync(file);
+    if (!info.exists) return false;
+    const content = await FileSystem.readAsStringAsync(file);
+    return content.trim() === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function setLockEnabled(enabled: boolean): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    await FileSystem.writeAsStringAsync(FileSystem.documentDirectory + 'lock.enabled', enabled ? '1' : '0');
+  } catch (e) { /* تجاهل */ }
+}
+
+export async function authenticateWithBiometrics(): Promise<boolean> {
+  if (Platform.OS === 'web') return true;
+  try {
+    const LocalAuthentication = require('expo-local-authentication');
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    if (!hasHardware) return false;
+    const enrolled = await LocalAuthentication.isEnrolledAsync();
+    if (!enrolled) return false;
+    const res = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'بصمة المكتبة',
+      fallbackLabel: 'استخدم رمز الدخول',
+      disableDeviceFallback: false,
+    });
+    return !!res.success;
+  } catch (e) {
+    return false;
+  }
+}

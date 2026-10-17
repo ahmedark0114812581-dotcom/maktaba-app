@@ -72,6 +72,7 @@
     <div class="tab" onclick="showTab('videos', this)">الفيديوهات</div>
     <div class="tab" onclick="showTab('requests', this)">الطلبات</div>
     <div class="tab" onclick="showTab('codes', this)">الأكواد</div>
+    <div class="tab" onclick="showTab('duplicates', this)">التكرارات</div>
   </div>
   <div class="login-overlay" id="loginOverlay" style="display:none">
     <div class="login-box">
@@ -243,6 +244,8 @@
         renderRequests(content);
       } else if (currentTab === 'codes') {
         renderCodes(content);
+      } else if (currentTab === 'duplicates') {
+        renderDuplicates(content);
       }
     }
 
@@ -494,6 +497,70 @@
         if (!r.ok) throw new Error('فشل');
         showToast('✅ اتحذف');
         loadCodes();
+      } catch (e) { showToast('❌ ' + e.message); }
+    }
+
+    // ============ التكرارات ============
+    function renderDuplicates(content) {
+      content.innerHTML = `
+        <div class="section-header">الفيديوهات المتكررة</div>
+        <div class="card">
+          <div style="font-size:13px;color:#666;line-height:1.7">
+            ⚠️ الفيديوهات المتكررة بتاخد مساحة من السحابة. مسح المكرر بيوفر المساحة.
+          </div>
+        </div>
+        <div id="dupList"><div class="empty-state">⏳ جاري الفحص...</div></div>
+      `;
+      loadDuplicates();
+    }
+
+    async function loadDuplicates() {
+      const list = document.getElementById('dupList');
+      try {
+        const r = await fetch('/api/admin/duplicates');
+        if (!r.ok) throw new Error('غير مصرح');
+        const j = await r.json();
+        const groups = [];
+        (j.byUrl || []).forEach(g => groups.push({ type: 'نفس الملف', key: g.key, items: g.items }));
+        (j.byTitle || []).forEach(g => groups.push({ type: 'نفس العنوان', key: g.key, items: g.items }));
+
+        if (!groups.length) {
+          list.innerHTML = '<div class="empty-state">✅ مفيش فيديوهات متكررة — كل حاجة نظيفة</div>';
+          return;
+        }
+        list.innerHTML = groups.map(g => `
+          <div class="card" style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div>
+                <span style="background:#FFF3E0;color:#E65100;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700">${g.type}</span>
+                <span style="font-size:12px;color:#888;margin-right:8px">${g.items.length} فيديو</span>
+              </div>
+            </div>
+            ${g.items.map((v, vi) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #f0f0f0">
+                <div>
+                  <div style="font-weight:600">${escapeHtml(v.title)}</div>
+                  <div style="font-size:11px;color:#999;margin-top:2px">ID: ${v.id} • ${String(v.url || '').slice(0, 45)}</div>
+                </div>
+                ${vi > 0
+                  ? `<button class="btn btn-danger" onclick="deleteDuplicate(${v.id})">حذف المكرر</button>`
+                  : '<span style="font-size:11px;color:#4CAF50;font-weight:700">أصلي ✓</span>'}
+              </div>
+            `).join('')}
+          </div>
+        `).join('');
+      } catch (e) {
+        list.innerHTML = '<div class="empty-state">❌ تعذر الفحص</div>';
+      }
+    }
+
+    async function deleteDuplicate(id) {
+      if (!confirm('متأكد عايز تحذف الفيديو المكرر ده؟')) return;
+      try {
+        const r = await fetch('/api/videos/' + id, { method: 'DELETE' });
+        if (!r.ok) throw new Error('فشل');
+        showToast('✅ اتحذف المكرر');
+        loadDuplicates();
       } catch (e) { showToast('❌ ' + e.message); }
     }
 

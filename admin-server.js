@@ -462,6 +462,45 @@ app.post('/api/codes/validate', (req, res) => {
   res.json({ valid: true, plan: found.plan });
 });
 
+// ============ كشف الفيديوهات المتكررة ============
+// بتجمّع حسب: نفس الملف (url) | نفس العنوان | نفس مفتاح B2
+app.get('/api/admin/duplicates', requireAuth, (req, res) => {
+  const byUrl = {};
+  const byTitle = {};
+  const byB2 = {};
+
+  videos.forEach((v) => {
+    const u = String(v.url || '').trim();
+    if (u) (byUrl[u] = byUrl[u] || []).push(v);
+    const t = String(v.title || '').trim().toLowerCase();
+    if (t) (byTitle[t] = byTitle[t] || []).push(v);
+    const k = b2KeyFromUrl(u);
+    if (k) (byB2[k] = byB2[k] || []).push(v);
+  });
+
+  const dupUrls = Object.values(byUrl).filter((g) => g.length > 1);
+  const dupTitles = Object.values(byTitle).filter((g) => g.length > 1);
+  const dupB2 = Object.values(byB2).filter((g) => g.length > 1);
+
+  // حساب المساحة المهدرة (الملفات المكررة على B2)
+  let wasted = 0;
+  dupB2.forEach((g) => {
+    // نفس المفتاح مفيش مساحة مهدرة — لكن التكرار في الإدخالات
+  });
+
+  res.json({
+    byUrl: dupUrls.map((g) => ({ key: g[0].url, items: g })),
+    byTitle: dupTitles.map((g) => ({ key: g[0].title, items: g })),
+    byB2: dupB2.map((g) => ({ key: g[0].url, items: g })),
+    stats: {
+      total: videos.length,
+      dupUrlGroups: dupUrls.length,
+      dupTitleGroups: dupTitles.length,
+      dupB2Groups: dupB2.length,
+    },
+  });
+});
+
 // هل الجهاز مشترك؟
 app.get('/api/subscription', (req, res) => {
   const did = String(req.query.deviceId || '');

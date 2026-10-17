@@ -19,6 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import {
   getLocalVideoUri, downloadVideo, deleteLocalVideo, getDownloadsList,
   isSubscribed, activateCode, registerDownload, removeDownload, isWeb,
+  isLockEnabled, setLockEnabled, authenticateWithBiometrics,
 } from './storage';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -330,6 +331,8 @@ export default function App() {
   const [activationCode, setActivationCode] = useState('');
   const [activationMsg, setActivationMsg] = useState('');
   const [downloading, setDownloading] = useState<Record<string, number>>({});
+  const [lockEnabled, setLockEnabledState] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [requests, setRequests] = useState([
     { id: 1, text: 'شرح المعادلات من الصفر', status: 'قيد المراجعة' },
     { id: 2, text: 'الجدول الدوري مبسط', status: 'تم النشر' },
@@ -411,6 +414,34 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
+  // ============ قفل البصمة ============
+  useEffect(() => {
+    (async () => {
+      try {
+        const enabled = await isLockEnabled();
+        setLockEnabledState(enabled);
+        if (enabled) setLocked(true);
+      } catch (e) { /* تجاهل */ }
+    })();
+  }, []);
+
+  const handleUnlock = useCallback(async () => {
+    const ok = await authenticateWithBiometrics();
+    if (ok) setLocked(false);
+  }, []);
+
+  const handleToggleLock = useCallback(async (on: boolean) => {
+    if (on) {
+      const ok = await authenticateWithBiometrics();
+      if (!ok) { alert('⚠️ بصمة مش متسجلة على الجهاز'); return; }
+      await setLockEnabled(true);
+      setLockEnabledState(true);
+    } else {
+      await setLockEnabled(false);
+      setLockEnabledState(false);
+    }
+  }, []);
+
   const refreshDownloads = useCallback(async () => {
     try { setDownloads(await getDownloadsList()); } catch (e) { /* تجاهل */ }
   }, []);
@@ -472,6 +503,21 @@ export default function App() {
     if (homeTab === 'new') list.sort((a, b) => b.id - a.id);
     return list;
   }, [homeTab, foldersData]);
+
+  // ============ قفل البصمة ============
+  if (locked) {
+    return (
+      <View style={[styles.lockContainer, { backgroundColor: t.bg }]}>
+        <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} backgroundColor={t.bg} />
+        <Text style={{ fontSize: 52 }}>🔒</Text>
+        <Text style={[styles.lockTitle, { color: t.text }]}>المكتبة مقفلة</Text>
+        <Text style={[styles.lockSub, { color: t.textSecondary }]}>استخدم بصمتك للدخول</Text>
+        <TouchableOpacity style={[styles.lockBtn, { backgroundColor: t.accent }]} onPress={handleUnlock} activeOpacity={0.85}>
+          <Text style={styles.lockBtnText}>🔓 فتح بالبصمة</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   // ============ SPLASH ============
   if (showSplash) {
@@ -721,6 +767,22 @@ export default function App() {
           <Text style={[styles.moreText, { color: t.text }]}>{item.label}</Text>
         </TouchableOpacity>
       ))}
+
+      <Text style={[styles.moreSectionTitle, { color: t.textSecondary }]}>الأمان</Text>
+      <TouchableOpacity
+        style={[styles.moreItem, { backgroundColor: t.card, borderColor: t.border }]}
+        onPress={() => handleToggleLock(!lockEnabled)}
+      >
+        <Text style={styles.moreIcon}>🔒</Text>
+        <Text style={[styles.moreText, { color: t.text }]}>قفل البصمة</Text>
+        <View style={[styles.toggleTrack, { backgroundColor: lockEnabled ? t.accent : t.border }]}>
+          <View style={[styles.toggleThumb, { alignSelf: lockEnabled ? 'flex-end' : 'flex-start' }]} />
+        </View>
+      </TouchableOpacity>
+      <Text style={[styles.lockHint, { color: t.textSecondary }]}>
+        {lockEnabled ? '🔒 التطبيق مقفل بالبصمة' : '🔓 التطبيق مفتوح — مفيش قفل'}
+      </Text>
+
       <View style={styles.bottomPadding} />
     </ScrollView>
   );
@@ -1012,6 +1074,15 @@ const styles = StyleSheet.create({
     textAlign: 'center', letterSpacing: 2, borderWidth: 1,
   },
   activationMsg: { marginHorizontal: 16, marginTop: 14, fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  // قفل البصمة
+  lockContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  lockTitle: { fontSize: 24, fontWeight: 'bold', marginTop: 16 },
+  lockSub: { fontSize: 14, marginTop: 8, marginBottom: 28 },
+  lockBtn: { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 16 },
+  lockBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  toggleTrack: { width: 46, height: 26, borderRadius: 13, padding: 2, justifyContent: 'center' },
+  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFFFFF' },
+  lockHint: { fontSize: 11, marginHorizontal: 16, marginTop: 8 },
   // Tab Bar
   tabBar: { flexDirection: 'row', borderTopWidth: 1, paddingBottom: 8, paddingTop: 8 },
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
