@@ -18,6 +18,8 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+
 // ============ THEMES ============
 const themes = {
   light: {
@@ -254,6 +256,21 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // صورة البانر: بنجيبها من السيرفر لو موجودة (عشان تتغير من غير إعادة بناء التطبيق)
+  const [bannerUri, setBannerUri] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const url = `${API_URL}/banner.jpg`;
+    fetch(url, { method: 'HEAD' })
+      .then((r) => {
+        if (!cancelled && r.ok) setBannerUri(`${url}?v=${Date.now()}`);
+      })
+      .catch(() => { /* هنستخدم الصورة المدمجة */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const bannerSource = bannerUri ? { uri: bannerUri } : require('./assets/banner.png');
+
   const t = themes[theme];
 
   const shownFolders = useMemo(() => {
@@ -342,27 +359,25 @@ export default function App() {
         <Text style={[styles.homeTitle, { color: t.text }]}>المكتبة 🔥</Text>
       </View>
 
-      <TouchableOpacity onPress={() => setActiveTab('subscription')} activeOpacity={0.85}>
-        <LinearGradient
-          colors={[t.bannerFrom, t.bannerTo]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.banner}
-        >
-          <View style={styles.bannerTextWrap}>
-            <Text style={[styles.bannerTitle, { color: t.bannerText }]}>JOIN OUR MEMBERSHIP!</Text>
-            <Text style={[styles.bannerSub, { color: t.bannerText }]}>AD-Free • Play Acceleration</Text>
-          </View>
-          {/* مكان صورة بنر التطبيق */}
-          <Image
-            source={require('./assets/banner-badge-256.png')}
-            style={styles.bannerBadge}
-            resizeMode="contain"
-          />
-          <View style={styles.bannerBtn}>
-            <Text style={styles.bannerBtnText}>Upgrade</Text>
-          </View>
-        </LinearGradient>
+      <TouchableOpacity onPress={() => setActiveTab('subscription')} activeOpacity={0.9}>
+        <View style={styles.banner}>
+          {/* صورة بنر التطبيق — بتتغير من لوحة التحكم */}
+          <Image source={bannerSource} style={styles.bannerImg} resizeMode="cover" />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.bannerScrim}
+          >
+            <View style={styles.bannerTextWrap}>
+              <Text style={styles.bannerTitle}>JOIN OUR MEMBERSHIP!</Text>
+              <Text style={styles.bannerSub}>AD-Free • Play Acceleration</Text>
+            </View>
+            <View style={styles.bannerBtn}>
+              <Text style={styles.bannerBtnText}>Upgrade</Text>
+            </View>
+          </LinearGradient>
+        </View>
       </TouchableOpacity>
 
       <View style={styles.tabs}>
@@ -554,27 +569,30 @@ const styles = StyleSheet.create({
   homeTop: { alignItems: 'center', paddingTop: 48, paddingBottom: 8 },
   avatar: { width: 84, height: 84, borderRadius: 42, borderWidth: 2 },
   homeTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 12 },
-  // Banner
+  // Banner (صورة + طبقة تعتيم + نص)
   banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginHorizontal: 16,
     marginTop: 14,
     marginBottom: 6,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    height: 160,
     borderRadius: 26,
+    overflow: 'hidden',
+    backgroundColor: '#000000',
     shadowColor: '#000000',
     shadowOpacity: 0.18,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
     elevation: 6,
   },
+  bannerImg: { width: '100%', height: '100%' },
+  bannerScrim: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+    padding: 16,
+  },
   bannerTextWrap: { flex: 1, paddingRight: 8 },
-  bannerTitle: { fontSize: 15, fontWeight: 'bold', fontStyle: 'italic' },
-  bannerSub: { fontSize: 11, marginTop: 4, opacity: 0.92 },
-  // ===== مكان صورة بنر التطبيق =====
-  bannerBadge: { width: 62, height: 62, marginRight: 8 },
+  bannerTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', fontStyle: 'italic' },
+  bannerSub: { color: '#FFFFFF', fontSize: 11, marginTop: 4, opacity: 0.9 },
   bannerBtn: {
     backgroundColor: 'rgba(255,255,255,0.28)',
     paddingHorizontal: 16,

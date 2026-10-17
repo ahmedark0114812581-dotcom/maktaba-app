@@ -172,6 +172,13 @@
             <div class="chart">${bars}</div>
           </div>
         </div>
+        <div class="section-header">صورة بانر التطبيق</div>
+        <div class="card">
+          <img id="bannerPreview" alt="بانر" style="width:100%;border-radius:10px;display:none;background:#eee;margin-bottom:10px" />
+          <input type="file" id="bannerInput" accept="image/*" class="input" />
+          <button class="btn" onclick="uploadBanner()">حفظ صورة البانر</button>
+          <div class="card-sub" style="margin-top:8px">صورة عريضة (16:9). هتظهر فوراً في التطبيق من غير إعادة بناء.</div>
+        </div>
         <div class="section-header">أكثر الملفات زيارة</div>
         ${topFiles.length === 0 ? '<div class="empty-state">لا توجد ملفات</div>' : topFiles.map((f, i) => `
           <div class="card">
@@ -182,6 +189,33 @@
           </div>
         `).join('')}
       `;
+      loadBannerInfo();
+    }
+
+    async function loadBannerInfo() {
+      try {
+        const r = await fetch('/api/banner');
+        const info = await r.json();
+        const img = document.getElementById('bannerPreview');
+        if (img && info.exists) {
+          img.src = info.url;
+          img.style.display = 'block';
+        }
+      } catch (e) { /* تجاهل */ }
+    }
+
+    async function uploadBanner() {
+      const input = document.getElementById('bannerInput');
+      if (!input || !input.files || !input.files[0]) { showToast('اختر صورة الأول'); return; }
+      const fd = new FormData();
+      fd.append('banner', input.files[0]);
+      try {
+        const r = await fetch('/api/banner', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (!r.ok) { showToast(data.error || 'فشل رفع الصورة'); return; }
+        showToast('تم تحديث صورة البانر ✅');
+        loadBannerInfo();
+      } catch (e) { showToast('فشل الاتصال بالسيرفر'); }
     }
 
     function renderFiles(content) {

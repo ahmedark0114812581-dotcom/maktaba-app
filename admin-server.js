@@ -305,6 +305,49 @@ app.post('/api/upload', requireAuth, upload.single('video'), (req, res) => {
   res.json({ success: true, url: videoUrl, filename: req.file.filename });
 });
 
+// ===== صورة بنر التطبيق =====
+const BANNER_FILE = path.join(__dirname, 'public', 'banner.jpg');
+const bannerUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = ['image/jpeg', 'image/png', 'image/webp'];
+    if (ok.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('نوع الصورة غير مدعوم. المسموح: jpg, png, webp'));
+  },
+});
+
+let sharp = null;
+try { sharp = require('sharp'); } catch (e) { console.warn('sharp غير متاح — هنحفظ الصورة كما هي'); }
+
+app.post('/api/banner', requireAuth, bannerUpload.single('banner'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'لم يتم رفع صورة' });
+  try {
+    if (sharp) {
+      await sharp(req.file.buffer)
+        .resize(1400, 788, { fit: 'cover', position: 'centre' })
+        .jpeg({ quality: 88 })
+        .toFile(BANNER_FILE);
+    } else {
+      fs.writeFileSync(BANNER_FILE, req.file.buffer);
+    }
+    res.json({ success: true, url: '/banner.jpg?v=' + Date.now() });
+  } catch (e) {
+    console.error('banner error:', e);
+    res.status(500).json({ error: 'تعذر معالجة الصورة' });
+  }
+});
+
+// معلومات البانر الحالي
+app.get('/api/banner', (req, res) => {
+  const exists = fs.existsSync(BANNER_FILE);
+  res.json({
+    exists,
+    url: exists ? '/banner.jpg?v=' + fs.statSync(BANNER_FILE).mtimeMs : null,
+    size: exists ? fs.statSync(BANNER_FILE).size : 0,
+  });
+});
+
 // Error handling
 app.use((err, req, res, next) => {
   console.error('Error:', err);
