@@ -81,13 +81,13 @@ const folders = [
 
 const sampleVideos = [
   { id: 1, title: 'مقدمة في البرمجة', duration: '0:10', views: '546', folderId: 1, url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4', isVertical: false },
-  { id: 2, title: 'أساسيات التصميم', duration: '1:00', views: '115', folderId: 1, url: 'https://media.w3.org/2010/05/bunny/movie.mp4', isVertical: false },
-  { id: 3, title: 'تعلم الربح من الإنترنت', duration: '0:10', views: '89', folderId: 2, url: 'https://test-videos.co.uk/vids/jellyfish/mp4/h264/720/Jellyfish_720_10s_1MB.mp4', isVertical: false },
-  { id: 4, title: 'أفضل تطبيقات 2025', duration: '0:30', views: '67', folderId: 3, url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', isVertical: true },
-  { id: 5, title: 'مراجعة هاتف جديد', duration: '0:30', views: '45', folderId: 4, url: 'https://media.w3.org/2010/05/video/movie_300.mp4', isVertical: false },
-  { id: 6, title: 'سرعة الإنجاز', duration: '0:15', views: '34', folderId: 5, url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4', isVertical: true },
-  { id: 7, title: 'شرح المعادلات', duration: '0:10', views: '234', folderId: 1, url: 'https://test-videos.co.uk/vids/sintel/mp4/h264/720/Sintel_720_10s_1MB.mp4', isVertical: false },
-  { id: 8, title: 'الجدول الدوري', duration: '0:52', views: '178', folderId: 2, url: 'https://media.w3.org/2010/05/sintel/trailer.mp4', isVertical: false },
+  { id: 2, title: 'أساسيات التصميم', duration: '0:10', views: '115', folderId: 1, url: 'https://test-videos.co.uk/vids/jellyfish/mp4/h264/720/Jellyfish_720_10s_1MB.mp4', isVertical: false },
+  { id: 3, title: 'تعلم الربح من الإنترنت', duration: '0:10', views: '89', folderId: 2, url: 'https://test-videos.co.uk/vids/sintel/mp4/h264/720/Sintel_720_10s_1MB.mp4', isVertical: false },
+  { id: 4, title: 'أفضل تطبيقات 2025', duration: '0:05', views: '67', folderId: 3, url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', isVertical: true },
+  { id: 5, title: 'مراجعة هاتف جديد', duration: '0:13', views: '45', folderId: 4, url: 'https://filesamples.com/samples/video/mp4/sample_640x360.mp4', isVertical: false },
+  { id: 6, title: 'سرعة الإنجاز', duration: '0:06', views: '34', folderId: 5, url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4', isVertical: true },
+  { id: 7, title: 'شرح المعادلات', duration: '0:10', views: '234', folderId: 1, url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_2MB.mp4', isVertical: false },
+  { id: 8, title: 'الجدول الدوري', duration: '0:08', views: '178', folderId: 2, url: 'https://mdn.github.io/learning-area/html/multimedia-and-embedding/video-and-audio-content/rabbit320.mp4', isVertical: false },
 ];
 
 type VideoItem = typeof sampleVideos[0];
