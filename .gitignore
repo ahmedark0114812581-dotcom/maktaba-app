@@ -2,3 +2,6 @@ node_modules/
 .expo/
 dist/
 web-build/
+.env
+data.json
+uploads/

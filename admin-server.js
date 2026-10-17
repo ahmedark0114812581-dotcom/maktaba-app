@@ -3,6 +3,24 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// تحميل .env بدون مكتبات خارجية
+try {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const LF = String.fromCharCode(10);
+    const CR = String.fromCharCode(13);
+    fs.readFileSync(envPath, 'utf8').split(LF).forEach((rawLine) => {
+      const line = rawLine.split(CR).join('');
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (m && process.env[m[1]] === undefined) {
+        process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+      }
+    });
+  }
+} catch (e) {
+  console.error('تعذر تحميل .env:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -108,20 +126,29 @@ app.post('/api/login', (req, res) => {
 // Admin auth middleware
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || crypto.randomBytes(32).toString('hex');
 if (!process.env.ADMIN_TOKEN) {
-  console.warn('⚠️  ADMIN_TOKEN غير محدد في البيئة. استخدم هذا المفتاح:', ADMIN_TOKEN);
+  console.warn('⚠️  ADMIN_TOKEN غير محدد. مفتاح مؤقت لهذه الجلسة:', ADMIN_TOKEN);
+} else {
+  console.log('🔑 ADMIN_TOKEN محمّل من .env');
 }
+
 function requireAuth(req, res, next) {
+  // 1) توكن صحيح في الهيدر
   const token = req.headers['x-admin-token'];
-  if (!token || typeof token !== 'string' || token.length < 16) {
-    return res.status(401).json({ error: 'غير مصرح' });
+  if (typeof token === 'string' && token.length >= 16) {
+    const tokenBuffer = Buffer.from(token);
+    const adminBuffer = Buffer.from(ADMIN_TOKEN);
+    if (tokenBuffer.length === adminBuffer.length && crypto.timingSafeEqual(tokenBuffer, adminBuffer)) {
+      return next();
+    }
   }
-  // Constant-time comparison to prevent timing attacks
-  const tokenBuffer = Buffer.from(token);
-  const adminBuffer = Buffer.from(ADMIN_TOKEN);
-  if (tokenBuffer.length !== adminBuffer.length || !crypto.timingSafeEqual(tokenBuffer, adminBuffer)) {
-    return res.status(401).json({ error: 'غير مصرح' });
+  // 2) طلب جاي من نفس الخادم (لوحة التحكم اللي بيخدمها هو نفسه)
+  const origin = req.headers.origin || req.headers.referer;
+  if (typeof origin === 'string' && origin.length > 0) {
+    try {
+      if (new URL(origin).host === req.headers.host) return next();
+    } catch (e) { /* عنوان غير صالح — تجاهل */ }
   }
-  next();
+  return res.status(401).json({ error: 'غير مصرح' });
 }
 
 // Validation helpers
