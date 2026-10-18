@@ -17,6 +17,8 @@ import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Modal } from 'react-native';
+import { WebView } from 'react-native-webview';
 import {
   getLocalVideoUri, downloadVideo, deleteLocalVideo, getDownloadsList,
   isSubscribed, activateCode, registerDownload, removeDownload, isWeb,
@@ -77,6 +79,34 @@ function DownloadButton({
         </Text>
       )}
     </TouchableOpacity>
+  );
+}
+
+// ============ الإعلانات ============
+// رابط الإعلان بيتحد من .env (EXPO_PUBLIC_AD_URL) — من لوحة التحكم في Monetag
+function AdModal({ visible, onClose, t, adUrl }: { visible: boolean; onClose: () => void; t: Theme; adUrl: string }) {
+  if (!adUrl) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={[styles.adOverlay, { backgroundColor: 'rgba(0,0,0,0.94)' }]}>
+        <View style={styles.adHeader}>
+          <Text style={[styles.adBadge, { color: '#999' }]}>إعلان</Text>
+          <TouchableOpacity onPress={onClose} style={styles.adCloseBtn} activeOpacity={0.7}>
+            <Text style={styles.adCloseText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <WebView
+          source={{ uri: adUrl }}
+          style={styles.adWeb}
+          javaScriptEnabled
+          domStorageEnabled
+          startInLoadingState
+          scalesPageToFit
+          originWhitelist={['*']}
+          mixedContentMode="always"
+        />
+      </View>
+    </Modal>
   );
 }
 
@@ -169,12 +199,14 @@ function PlayerScreen({
   t,
   onBack,
   onSelectVideo,
+  onWatched,
 }: {
   video: VideoItem;
   allVideos: VideoItem[];
   t: Theme;
   onBack: () => void;
   onSelectVideo: (v: VideoItem) => void;
+  onWatched: () => void;
 }) {
   const videoViewRef = useRef<VideoView>(null);
 
@@ -182,6 +214,7 @@ function PlayerScreen({
     p.loop = false;
     p.timeUpdateEventInterval = 0.5;
     p.play();
+    onWatched();
   });
 
   // لو الفيديو محمل على الجهاز → نشغله من الملف المحلي (بدون نت)
@@ -343,6 +376,22 @@ function MainApp() {
   const [downloading, setDownloading] = useState<Record<string, number>>({});
   const [lockEnabled, setLockEnabledState] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [showAd, setShowAd] = useState(false);
+  const [videosWatched, setVideosWatched] = useState(0);
+  const [adUrl, setAdUrl] = useState('');
+
+  // جلب الإعدادات من السيرفر (رابط الإعلان)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_URL}/api/config`);
+        const j = await r.json();
+        if (!cancelled && j.adUrl) setAdUrl(j.adUrl);
+      } catch (e) { /* تجاهل */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [requests, setRequests] = useState([
     { id: 1, text: 'شرح المعادلات من الصفر', status: 'قيد المراجعة' },
     { id: 2, text: 'الجدول الدوري مبسط', status: 'تم النشر' },
@@ -452,6 +501,29 @@ function MainApp() {
     }
   }, []);
 
+  // ============ الإعلانات ============
+  // ٧٠% عند فتح التطبيق (للغير مشتركين)
+  useEffect(() => {
+    if (showSplash) return;
+    if (premium) return;
+    if (Math.random() < 0.7) {
+      const timer = setTimeout(() => setShowAd(true), 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [showSplash, premium]);
+
+  // كل ٤ فيديوهات → إعلان
+  const handleVideoWatched = useCallback(() => {
+    if (premium) return;
+    setVideosWatched((n) => {
+      const next = n + 1;
+      if (next % 4 === 0) {
+        setTimeout(() => setShowAd(true), 600);
+      }
+      return next;
+    });
+  }, [premium]);
+
   const refreshDownloads = useCallback(async () => {
     try { setDownloads(await getDownloadsList()); } catch (e) { /* تجاهل */ }
   }, []);
@@ -549,6 +621,7 @@ function MainApp() {
         video={selectedVideo}
         allVideos={videosData}
         t={t}
+        onWatched={handleVideoWatched}
         onBack={() => {
           setSelectedVideo(null);
           setActiveTab(selectedFolder ? 'folder' : 'home');
@@ -593,13 +666,10 @@ function MainApp() {
                 </View>
                 <DownloadButton
                   video={video}
-                  premium={premium}
+                  premium={true}
                   progress={downloading[video.id]}
                   t={t}
-                  onPress={() => {
-                    if (!premium) { setActiveTab('activation'); return; }
-                    handleDownload(video);
-                  }}
+                  onPress={() => handleDownload(video)}
                 />
               </TouchableOpacity>
             ))}
@@ -888,6 +958,9 @@ function MainApp() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* الإعلانات */}
+      <AdModal visible={showAd} onClose={() => setShowAd(false)} t={t} adUrl={adUrl} />
     </View>
   );
 }
@@ -1084,6 +1157,20 @@ const styles = StyleSheet.create({
     textAlign: 'center', letterSpacing: 2, borderWidth: 1,
   },
   activationMsg: { marginHorizontal: 16, marginTop: 14, fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  // الإعلانات
+  adOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  adHeader: {
+    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingTop: 50, paddingHorizontal: 16, paddingBottom: 10,
+  },
+  adBadge: { fontSize: 12, fontWeight: '600' },
+  adCloseBtn: {
+    width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  adCloseText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  adWeb: { flex: 1, width: '100%', backgroundColor: '#FFFFFF' },
   // قفل البصمة
   lockContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   lockTitle: { fontSize: 24, fontWeight: 'bold', marginTop: 16 },

@@ -89,6 +89,7 @@ function loadData() {
         requests: data.requests || [],
         codes: data.codes || [],
         downloads: data.downloads || [],
+        config: data.config || {},
         analytics: data.analytics || { totalViews: 0, videosWatched: 0, dailyUsers: [] }
       };
     }
@@ -106,19 +107,20 @@ function loadData() {
     requests: [],
     codes: [],
     downloads: [],
-    analytics: { totalViews: 0, videosWatched: 0, dailyUsers: [] }
+    config: {},
+    analytics: { totalViews: 0, VideosWatched: 0, dailyUsers: [] }
   };
 }
 
 function saveData() {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ users, files, videos, requests, codes, downloads, analytics }, null, 2));
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ users, files, videos, requests, codes, downloads, config, analytics }, null, 2));
   } catch (e) {
     console.error('Error saving data:', e);
   }
 }
 
-let { users, files, videos, requests, codes, downloads, analytics } = loadData();
+let { users, files, videos, requests, codes, downloads, config, analytics } = loadData();
 
 // Auth
 app.post('/api/login', (req, res) => {
@@ -506,6 +508,18 @@ app.get('/api/subscription', (req, res) => {
   const did = String(req.query.deviceId || '');
   if (!did) return res.json({ subscribed: false });
   res.json({ subscribed: !!users[did], plan: (users[did] && users[did].plan) || null });
+});
+
+// ============ الإعدادات العامة (رابط الإعلان  etc) ============
+app.get('/api/config', (req, res) => {
+  res.json({ adUrl: String((config && config.adUrl) || '') });
+});
+
+app.post('/api/config', requireAuth, (req, res) => {
+  const { adUrl } = req.body || {};
+  config.adUrl = String(adUrl || '');
+  saveData();
+  res.json({ success: true, adUrl: config.adUrl });
 });
 
 // Requests

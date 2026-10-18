@@ -298,6 +298,17 @@
           </a>
           <div class="card-sub" style="margin-top:8px">من هناك تقدر تحمّل أي نسخة أو تبني نسخة جديدة بعد أي تعديل.</div>
         </div>
+        <div class="section-header">رابط الإعلان (Monetag / Adsterra)</div>
+        <div class="card">
+          <div style="font-size:13px;color:#666;margin-bottom:10px;line-height:1.7">
+            📢 حط رابط الإعلان من لوحة التحكم في Monetag.<br>
+            الإعلان بيظهر: <b>٧٠%</b> من مرات فتح التطبيق + كل <b>٤ فيديوهات</b>.<br>
+            <b>المشتركين: بدون إعلانات</b> ⭐
+          </div>
+          <input id="adUrlInput" class="input" placeholder="https://... (من Monetag)" />
+          <button class="btn" onclick="saveAdUrl()">حفظ رابط الإعلان</button>
+          <div class="card-sub" id="adUrlMsg" style="margin-top:8px"></div>
+        </div>
         <div class="section-header">أكثر الملفات زيارة</div>
         ${topFiles.length === 0 ? '<div class="empty-state">لا توجد ملفات</div>' : topFiles.map((f, i) => `
           <div class="card">
@@ -576,6 +587,23 @@
         showToast('✅ اتحذف المكرر');
         loadDuplicates();
       } catch (e) { showToast('❌ ' + e.message); }
+    }
+
+    // ============ رابط الإعلان ============
+    async function saveAdUrl() {
+      const url = document.getElementById('adUrlInput').value.trim();
+      if (!url || !url.startsWith('http')) { document.getElementById('adUrlMsg').textContent = '⚠️ حط رابط صحيح يبدأ بـ http'; return; }
+      try {
+        const r = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adUrl: url }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'فشل');
+        document.getElementById('adUrlMsg').innerHTML = '✅ اتحفظ — الإعلان هيظهر من غير إعادة بناء';
+        document.getElementById('adUrlInput').value = '';
+      } catch (e) { document.getElementById('adUrlMsg').textContent = '❌ ' + e.message; }
     }
 
     function changePage(page) {
