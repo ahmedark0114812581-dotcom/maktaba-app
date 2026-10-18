@@ -140,8 +140,8 @@ function isListening(port) {
   log('================================================');
   log('');
 
-  // نسيب العملية شغالة
-  process.stdin.resume();
+  // نسيب العملية شغالة (من غير stdin عشان تشتغل في الخلفية)
+  setInterval(() => {}, 1 << 30);
 })();
 
 process.on('SIGINT', () => {
