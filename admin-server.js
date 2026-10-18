@@ -80,10 +80,7 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // Data storage
-// مسار البيانات: على Render بيكون /data (ديسك دائم)، محلياً يكون مجلد المشروع
-const DATA_DIR = process.env.DATA_DIR || __dirname;
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
-const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 
 function loadData() {
   try {
