@@ -14,7 +14,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://seller-crown-debian-compact.trycloudflare.com"
+        "EXPO_PUBLIC_API_URL": "https://maktaba-app-4.onrender.com"
       }
     },
     "production": {
@@ -22,7 +22,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://seller-crown-debian-compact.trycloudflare.com"
+        "EXPO_PUBLIC_API_URL": "https://maktaba-app-4.onrender.com"
       }
     }
   }
