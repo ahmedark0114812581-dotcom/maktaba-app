@@ -24,6 +24,10 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// مسار البيانات: على Render بيكون /data (ديسك دائم)، محلياً يكون مجلد المشروع
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+
 // Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -70,13 +74,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // لوحة التحكم على الجذر — الملف اسمه admin.html عشان ميتعارضش مع واجهة تطبيق Expo
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // Data storage
-const DATA_FILE = path.join(__dirname, 'data.json');
+// مسار البيانات: على Render بيكون /data (ديسك دائم)، محلياً يكون مجلد المشروع
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const DATA_FILE = path.join(DATA_DIR, 'data.json');
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 
 function loadData() {
   try {
@@ -371,8 +378,8 @@ app.delete('/api/videos/:id', requireAuth, async (req, res) => {
   // 2) ملف على القرص المحلي
   else if (!stillUsed && u.startsWith('/uploads/')) {
     try {
-      const uploadsDir = path.join(__dirname, 'uploads');
-      const fp = path.resolve(path.join(__dirname, u.replace(/^\/+/, '')));
+      const uploadsDir = UPLOADS_DIR;
+      const fp = path.resolve(path.join(DATA_DIR, u.replace(/^\/+/, '')));
       if (fp.startsWith(uploadsDir) && fs.existsSync(fp)) {
         fs.unlinkSync(fp);
         fileDeleted = true;
@@ -544,7 +551,7 @@ app.get('/api/analytics', (req, res) => res.json(analytics));
 const multer = require('multer');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, 'uploads');
+    const uploadDir = UPLOADS_DIR;
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },

@@ -1,0 +1,21 @@
+# Render Blueprint — خادم المكتبة
+# الملف ده بيقول لـ Render يبني السيرفر وازاي يشغله
+
+services:
+  - type: web
+    name: maktaba-app
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node admin-server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: maktaba-data
+      mountPath: /data
+      sizeGB: 1
