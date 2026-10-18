@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   getLocalVideoUri, downloadVideo, deleteLocalVideo, getDownloadsList,
@@ -318,6 +319,15 @@ function PlayerScreen({
 
 // ============ التطبيق ============
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <MainApp />
+    </SafeAreaProvider>
+  );
+}
+
+function MainApp() {
+  const insets = useSafeAreaInsets();
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [homeTab, setHomeTab] = useState<'all' | 'hot' | 'new'>('all');
@@ -858,7 +868,7 @@ export default function App() {
       {activeTab === 'activation' && renderActivation()}
       {activeTab === 'more' && renderMore()}
 
-      <View style={[styles.tabBar, { backgroundColor: t.tabBar, borderTopColor: t.border }]}>
+      <View style={[styles.tabBar, { backgroundColor: t.tabBar, borderTopColor: t.border, paddingBottom: 8 + insets.bottom }]}>
         {[
           { id: 'home', icon: '🏠', label: 'الرئيسية' },
           { id: 'downloads', icon: '⬇️', label: 'التحميلات' },
