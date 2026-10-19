@@ -79,6 +79,10 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // لوحة التحكم على الجذر — الملف اسمه admin.html عشان ميتعارضش مع واجهة تطبيق Expo
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
+// صفحة تعريفية عامة للتطبيق (للإعلانات والمراجعة)
+app.get('/landing', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
+app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
+
 // Data storage
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
 

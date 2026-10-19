@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>المكتبة — تطبيق الفيديوهات الترفيهية</title>
+  <meta name="description" content="المكتبة — تطبيق فيديوهات ترفيهية ومسلية. شاهد وحمّل آلاف الفيديوهات المجانية." />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: linear-gradient(160deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+      color: #fff; min-height: 100vh; line-height: 1.8;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 40px 20px 60px; }
+    header { text-align: center; margin-bottom: 48px; }
+    .logo {
+      width: 96px; height: 96px; border-radius: 24px; margin: 0 auto 20px;
+      background: linear-gradient(135deg, #43A047, #1B5E20);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 44px; font-weight: 800; color: #fff;
+      box-shadow: 0 12px 40px rgba(67,160,71,0.35);
+    }
+    h1 { font-size: 38px; margin-bottom: 12px; font-weight: 800; }
+    .tagline { font-size: 18px; color: #b8c6cc; }
+    .btn {
+      display: inline-block; margin-top: 26px; padding: 15px 40px; border-radius: 50px;
+      background: linear-gradient(135deg, #43A047, #2E7D32); color: #fff;
+      text-decoration: none; font-weight: 700; font-size: 17px;
+      box-shadow: 0 8px 28px rgba(67,160,71,0.4);
+    }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin: 48px 0; }
+    .card {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px; padding: 26px 22px; backdrop-filter: blur(8px);
+    }
+    .card .ico { font-size: 32px; margin-bottom: 12px; }
+    .card h3 { font-size: 17px; margin-bottom: 8px; color: #7dd87d; }
+    .card p { font-size: 14px; color: #b8c6cc; }
+    section { margin: 44px 0; }
+    h2 { font-size: 24px; margin-bottom: 18px; color: #7dd87d; }
+    section p, section li { color: #cfd8dc; font-size: 15px; }
+    ul { padding-right: 22px; }
+    li { margin-bottom: 8px; }
+    footer {
+      margin-top: 60px; padding-top: 26px; text-align: center; font-size: 13px;
+      color: #8fa0a8; border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    footer a { color: #7dd87d; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">م</div>
+      <h1>المكتبة</h1>
+      <p class="tagline">تطبيق الفيديوهات الترفيهية — شاهد، حمّل، واستمتع</p>
+      <a class="btn" href="#about">تعرّف على التطبيق</a>
+    </header>
+
+    <div class="features">
+      <div class="card">
+        <div class="ico">🎬</div>
+        <h3>آلاف الفيديوهات</h3>
+        <p>مكتبة متجددة من الفيديوهات الترفيهية والمسلية، مصنّفة في مجموعات سهلة التصفح.</p>
+      </div>
+      <div class="card">
+        <div class="ico">⬇️</div>
+        <h3>تحميل مجاني</h3>
+        <p>حمّل أي فيديو على هاتفك وشاهده في أي وقت — من غير إنترنت.</p>
+      </div>
+      <div class="card">
+        <div class="ico">⚡</div>
+        <h3>سريع وخفيف</h3>
+        <p>التطبيق خفيف على الجهاز، والفيديوهات بتشتغل بسرعة حتى على شبكة ضعيفة.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🎨</div>
+        <h3>ثلاثة مظاهر</h3>
+        <p>فاتح، داكن، وبريميوم — اختار اللي يريحك.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🔒</div>
+        <h3>قفل البصمة</h3>
+        <p>احمي تطبيقك بقفل بصمة اختياري — محدش يفتحه غيرك.</p>
+      </div>
+      <div class="card">
+        <div class="ico">📱</div>
+        <h3>مجاني بالكامل</h3>
+        <p>كل الميزات مجانية — من غير اشتراكات ولا رسوم خفية.</p>
+      </div>
+    </div>
+
+    <section id="about">
+      <h2>عن التطبيق</h2>
+      <p>
+        «المكتبة» تطبيق أندرويد للفيديوهات الترفيهية. بيجمع لك مجموعة كبيرة من الفيديوهات المسلية
+        في مكان واحد، منظّمة في مجلدات سهلة التصفح. تقدر تشاهد أي فيديو مباشرة، أو تحمّله على
+        هاتفك وتشاهده في أي وقت من غير إنترنت.
+      </p>
+      <p style="margin-top:14px">
+        التطبيق مجاني بالكامل، وبيشتغل على معظم أجهزة أندرويد الحديثة.
+      </p>
+    </section>
+
+    <section>
+      <h2>الميزات الرئيسية</h2>
+      <ul>
+        <li>تصفح الفيديوهات في مجلدات مصنّفة</li>
+        <li>مشاهدة مباشرة بجودة عالية</li>
+        <li>تحميل الفيديوهات للمشاهدة بدون إنترنت</li>
+        <li>شاشة تحميلات لإدارة الملفات المحفوظة</li>
+        <li>ثلاثة مظاهر للألوان (فاتح / داكن / بريميوم)</li>
+        <li>قفل بصمة لحماية التطبيق</li>
+        <li>إمكانية طلب فيديوهات جديدة</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>الأسئلة الشائعة</h2>
+      <p><strong>هل التطبيق مجاني؟</strong><br>آه، مجاني بالكامل.</p>
+      <p style="margin-top:12px"><strong>هل يحتاج إنترنت؟</strong><br>للمشاهدة المباشرة آه، لكن الفيديوهات المحمّلة تشتغل بدون إنترنت.</p>
+      <p style="margin-top:12px"><strong>كيف أحمّل فيديو؟</strong><br>افتح المجلد، واضغط زر «تحميل» على أي فيديو.</p>
+    </section>
+
+    <footer>
+      <p>© 2026 المكتبة — جميع الحقوق محفوظة</p>
+      <p style="margin-top:8px">للتواصل: <a href="mailto:ahmedark0114812581@gmail.com">ahmedark0114812581@gmail.com</a></p>
+    </footer>
+  </div>
+</body>
+</html>
