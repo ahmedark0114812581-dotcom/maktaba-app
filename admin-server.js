@@ -82,6 +82,8 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.ht
 // صفحة تعريفية عامة للتطبيق (للإعلانات والمراجعة)
 app.get('/landing', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
 app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
+// صفحة مكتبة الفيديوهات العامة (محتوى حقيقي للموقع)
+app.get('/videos', (req, res) => res.sendFile(path.join(__dirname, 'public', 'videos.html')));
 
 // Data storage
 const DATA_FILE = path.join(DATA_DIR, 'data.json');

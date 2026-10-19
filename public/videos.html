@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>المكتبة — مكتبة الفيديوهات</title>
+  <meta name="description" content="شاهد مكتبة الفيديوهات الترفيهية المجانية — تحميل ومشاهدة بدون إنترنت." />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: #0e1116; color: #e8eaed; line-height: 1.7; min-height: 100vh;
+    }
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(14,17,22,0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid #232830; padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-logo {
+      width: 40px; height: 40px; border-radius: 11px;
+      background: linear-gradient(135deg, #43A047, #1B5E20);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 800; color: #fff;
+    }
+    .brand-name { font-size: 18px; font-weight: 800; color: #fff; }
+    .brand-sub { font-size: 11px; color: #8b949e; }
+    nav a {
+      color: #b9c1cb; text-decoration: none; font-size: 14px;
+      margin-inline-start: 18px; font-weight: 600;
+    }
+    nav a:hover { color: #7dd87d; }
+
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 18px 70px; }
+    .head { margin-bottom: 26px; }
+    h1 { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
+    .sub { color: #8b949e; font-size: 15px; }
+    .stats { display: flex; gap: 22px; margin-top: 16px; flex-wrap: wrap; }
+    .stat { font-size: 13px; color: #8b949e; }
+    .stat b { color: #7dd87d; font-size: 17px; display: block; }
+
+    .grid {
+      display: grid; gap: 18px; margin-top: 24px;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+    .card {
+      background: #161b22; border: 1px solid #232830; border-radius: 16px;
+      overflow: hidden; transition: transform .18s, border-color .18s; cursor: pointer;
+    }
+    .card:hover { transform: translateY(-3px); border-color: #43A047; }
+    .thumb {
+      position: relative; width: 100%; aspect-ratio: 16/9; background: #0b0e13;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .thumb .play {
+      position: absolute; width: 54px; height: 54px; border-radius: 50%;
+      background: rgba(0,0,0,0.62); display: flex; align-items: center; justify-content: center;
+      font-size: 22px; color: #fff; pointer-events: none;
+    }
+    .thumb .dur {
+      position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.82);
+      color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 6px;
+    }
+    .thumb .vert {
+      position: absolute; top: 8px; right: 8px; background: rgba(67,160,71,0.9);
+      color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 700;
+    }
+    .meta { padding: 13px 14px 15px; }
+    .meta h3 { font-size: 14px; font-weight: 700; line-height: 1.45; margin-bottom: 5px; }
+    .meta .row { font-size: 12px; color: #8b949e; display: flex; justify-content: space-between; }
+
+    .empty { text-align: center; padding: 70px 20px; color: #8b949e; }
+    .empty .ico { font-size: 52px; margin-bottom: 14px; }
+
+    .player-wrap {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.94); z-index: 100;
+      display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .player-wrap.on { display: flex; }
+    .player-box { width: 100%; max-width: 900px; }
+    .player-box video { width: 100%; border-radius: 14px; background: #000; max-height: 78vh; }
+    .player-title { color: #fff; font-size: 16px; font-weight: 700; margin-top: 14px; text-align: center; }
+    .player-close {
+      position: absolute; top: 22px; left: 22px; width: 42px; height: 42px; border-radius: 50%;
+      background: rgba(255,255,255,0.14); border: 0; color: #fff; font-size: 20px; cursor: pointer;
+    }
+
+    footer {
+      margin-top: 60px; padding-top: 26px; text-align: center; font-size: 13px;
+      color: #6e7681; border-top: 1px solid #232830;
+    }
+    footer a { color: #7dd87d; text-decoration: none; }
+    .cta {
+      display: inline-block; margin-top: 18px; padding: 13px 30px; border-radius: 50px;
+      background: linear-gradient(135deg, #43A047, #2E7D32); color: #fff;
+      text-decoration: none; font-weight: 700; font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="brand" href="/landing">
+      <div class="brand-logo">م</div>
+      <div>
+        <div class="brand-name">المكتبة</div>
+        <div class="brand-sub">مكتبة الفيديوهات</div>
+      </div>
+    </a>
+    <nav>
+      <a href="/landing">الرئيسية</a>
+      <a href="/videos">الفيديوهات</a>
+      <a href="mailto:ahmedark0114812581@gmail.com">تواصل</a>
+    </nav>
+  </div>
+
+  <div class="wrap">
+    <div class="head">
+      <h1>مكتبة الفيديوهات</h1>
+      <p class="sub">مجموعة من الفيديوهات الترفيهية — شاهد مباشرة أو حمّل على هاتفك.</p>
+      <div class="stats">
+        <div class="stat"><b id="cnt">—</b> فيديو</div>
+        <div class="stat"><b id="folders">—</b> مجموعة</div>
+        <div class="stat"><b>مجاني</b> بالكامل</div>
+      </div>
+    </div>
+
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty" style="display:none">
+      <div class="ico">📭</div>
+      <div>مفيش فيديوهات لسه</div>
+    </div>
+
+    <div style="text-align:center;margin-top:44px">
+      <a class="cta" href="/landing">تعرّف على التطبيق ←</a>
+    </div>
+
+    <footer>
+      <p>© 2026 المكتبة — جميع الحقوق محفوظة</p>
+      <p style="margin-top:8px">للتواصل: <a href="mailto:ahmedark0114812581@gmail.com">ahmedark0114812581@gmail.com</a></p>
+    </footer>
+  </div>
+
+  <div class="player-wrap" id="playerWrap">
+    <button class="player-close" onclick="closePlayer()">✕</button>
+    <div class="player-box">
+      <video id="player" controls playsinline></video>
+      <div class="player-title" id="playerTitle"></div>
+    </div>
+  </div>
+
+  <script>
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+    function fix(u) {
+      if (!u) return '';
+      if (/^https?:\/\//i.test(u)) return u;
+      return u.startsWith('/') ? u : '/' + u;
+    }
+
+    let videos = [];
+
+    async function load() {
+      try {
+        const r = await fetch('/api/videos?limit=200');
+        const j = await r.json();
+        videos = j.data || j || [];
+      } catch (e) { videos = []; }
+
+      document.getElementById('cnt').textContent = videos.length;
+      const fset = new Set(videos.map(v => v.fileId ?? v.folderId).filter(Boolean));
+      document.getElementById('folders').textContent = fset.size || 0;
+
+      const grid = document.getElementById('grid');
+      if (!videos.length) {
+        document.getElementById('empty').style.display = 'block';
+        return;
+      }
+
+      grid.innerHTML = videos.map((v, i) => {
+        const src = fix(v.playUrl || v.url);
+        return `
+          <div class="card" onclick="play(${i})">
+            <div class="thumb">
+              <video src="${esc(src)}" preload="metadata" muted playsinline></video>
+              <div class="play">▶</div>
+              ${v.isVertical ? '<div class="vert">📱 عمودي</div>' : ''}
+              <div class="dur">${esc(v.duration || '0:00')}</div>
+            </div>
+            <div class="meta">
+              <h3>${esc(v.title || 'بدون عنوان')}</h3>
+              <div class="row">
+                <span>${esc(v.views || 0)} مشاهدة</span>
+                <span>${v.storage === 'b2' ? '☁️ سحابة' : '💾 محلي'}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function play(i) {
+      const v = videos[i];
+      if (!v) return;
+      const p = document.getElementById('player');
+      p.src = fix(v.playUrl || v.url);
+      document.getElementById('playerTitle').textContent = v.title || '';
+      document.getElementById('playerWrap').classList.add('on');
+      p.play().catch(() => {});
+    }
+
+    function closePlayer() {
+      const p = document.getElementById('player');
+      p.pause();
+      p.removeAttribute('src');
+      p.load();
+      document.getElementById('playerWrap').classList.remove('on');
+    }
+
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePlayer(); });
+
+    load();
+  </script>
+</body>
+</html>
