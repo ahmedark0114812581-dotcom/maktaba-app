@@ -10,7 +10,8 @@ module.exports = ({ config }) => {
     return {
       ...config,
       name: 'لوحة التحكم',
-      slug: 'maktaba-admin',
+      // الـ slug لازم يفضل نفسه عشان projectId يشتغل
+      slug: config.slug || 'maktaba-app',
       version: '1.0.0',
       orientation: 'default',
       icon: './assets/icon.png',
@@ -31,7 +32,7 @@ module.exports = ({ config }) => {
   return {
     ...config,
     name: 'المكتبة',
-    slug: 'maktaba-app',
+    slug: config.slug || 'maktaba-app',
     android: {
       ...config.android,
       package: 'com.maktaba.app',
