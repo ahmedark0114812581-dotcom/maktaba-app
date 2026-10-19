@@ -409,9 +409,21 @@
           <input class="input" id="newVideoTitle" placeholder="عنوان الفيديو">
 
           <div class="section-header" style="margin-top:4px">الفيديو من جهازك</div>
-          <input type="file" id="videoUploadInput" accept="video/*" class="input" onchange="onVideoPicked()">
-          <button class="btn" style="background:#1565C0" onclick="uploadVideo()">١) ارفع الفيديو على السيرفر</button>
+          <input type="file" id="videoUploadInput" accept="video/*" class="input" multiple onchange="onVideoPicked()">
+          <div class="card-sub" style="margin-bottom:8px">💡 تقدر تختار <b>أكثر من فيديو مرة واحدة</b> (اضغط Ctrl أو Shift)</div>
+          <button class="btn" style="background:#1565C0" onclick="uploadVideo()">١) ارفع الفيديوهات على السيرفر</button>
           <div id="uploadStatus" class="card-sub" style="margin-top:6px"></div>
+
+          <div id="uploadProgressWrap" style="display:none;margin-top:10px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#666;margin-bottom:5px">
+              <span id="uploadProgressLabel">جاري الرفع...</span>
+              <span id="uploadProgressPct">0%</span>
+            </div>
+            <div style="height:10px;background:#e8e8e8;border-radius:6px;overflow:hidden">
+              <div id="uploadProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#1565C0,#43A047);transition:width .2s"></div>
+            </div>
+            <div id="uploadQueue" style="margin-top:10px"></div>
+          </div>
 
           <div class="section-header" style="margin-top:12px">أو رابط جاهز</div>
           <input class="input" id="newVideoUrl" placeholder="رابط الفيديو — بيتعبى تلقائياً بعد الرفع" onchange="onUrlTyped()">
@@ -689,18 +701,131 @@
       const input = document.getElementById('videoUploadInput');
       const status = document.getElementById('uploadStatus');
       pickedVideoDuration = '0:00';
-      if (!input || !input.files || !input.files[0]) return;
-      const f = input.files[0];
-      const mb = (f.size / 1024 / 1024).toFixed(1);
-      if (status) status.textContent = '⏱️ بقرا المدة... (' + mb + ' ميجا)';
-      readDurationFromFile(f, (d) => {
-        pickedVideoDuration = d || '0:00';
-        if (status) {
-          status.textContent = d
-            ? '✅ المدة: ' + d + ' • الحجم: ' + mb + ' ميجا — دلوقتي اضغط «١) ارفع الفيديو»'
-            : '⚠️ مقدرتش أقرا المدة (' + mb + ' ميجا) — هتتسجل 0:00';
-        }
+      if (!input || !input.files || !input.files.length) return;
+      const n = input.files.length;
+      let total = 0;
+      for (let i = 0; i < input.files.length; i++) total += input.files[i].size;
+      const mb = (total / 1024 / 1024).toFixed(1);
+      if (status) status.textContent = '📼 اخترت ' + n + ' فيديو (' + mb + ' ميجا إجمالي)';
+      readDurationFromFile(input.files[0], (d) => { pickedVideoDuration = d || '0:00'; });
+    }
+
+    // رفع ملف واحد مع تتبع التقدم
+    function uploadOne(file, onProgress) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+        };
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+            else reject(new Error(data.error || 'فشل الرفع'));
+          } catch (e) { reject(new Error('رد غير متوقع')); }
+        };
+        xhr.onerror = () => reject(new Error('فشل الاتصال'));
+        const fd = new FormData();
+        fd.append('video', file);
+        xhr.send(fd);
       });
+    }
+
+    async function uploadVideo() {
+      const input = document.getElementById('videoUploadInput');
+      const status = document.getElementById('uploadStatus');
+      const wrap = document.getElementById('uploadProgressWrap');
+      const bar = document.getElementById('uploadProgressBar');
+      const pct = document.getElementById('uploadProgressPct');
+      const label = document.getElementById('uploadProgressLabel');
+      const queue = document.getElementById('uploadQueue');
+
+      if (!input || !input.files || !input.files.length) { showToast('اختر فيديو الأول'); return; }
+      const files = Array.from(input.files);
+      const totalBytes = files.reduce((a, f) => a + f.size, 0) || 1;
+      const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
+
+      wrap.style.display = 'block';
+      queue.innerHTML = '';
+      bar.style.width = '0%';
+      pct.textContent = '0%';
+      label.textContent = '⏳ جاري الرفع...';
+
+      let doneBytes = 0;
+      let okCount = 0;
+      let failCount = 0;
+      const results = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #f0f0f0';
+        row.innerHTML = '<span>📼 ' + escapeHtml(f.name.slice(0, 28)) + '</span><span class="qs">⏳</span>';
+        queue.appendChild(row);
+        const qs = row.querySelector('.qs');
+
+        const baseDone = doneBytes;
+        try {
+          const data = await uploadOne(f, (p) => {
+            const overall = (baseDone + f.size * p) / totalBytes;
+            const p100 = Math.round(overall * 100);
+            bar.style.width = p100 + '%';
+            pct.textContent = p100 + '%';
+            label.textContent = '⏳ رفع ' + (i + 1) + ' من ' + files.length + ' — ' + f.name.slice(0, 20);
+          });
+          doneBytes += f.size;
+          okCount++;
+          results.push(data);
+          qs.textContent = '✅';
+          qs.style.color = '#2E7D32';
+        } catch (e) {
+          doneBytes += f.size;
+          failCount++;
+          qs.textContent = '❌';
+          qs.style.color = '#D32F2F';
+        }
+        const p100 = Math.round((doneBytes / totalBytes) * 100);
+        bar.style.width = p100 + '%';
+        pct.textContent = p100 + '%';
+      }
+
+      if (results.length) {
+        document.getElementById('newVideoUrl').value = results[results.length - 1].url;
+      }
+      label.textContent = '✅ خلص — نجح ' + okCount + (failCount ? ' | فشل ' + failCount : '');
+      pct.textContent = '100%';
+      status.textContent = '✅ اترفع ' + okCount + ' فيديو (' + totalMB + ' ميجا)' + (failCount ? ' | ❌ فشل ' + failCount : '');
+
+      if (results.length) await autoAddVideos(results, status);
+    }
+
+    // يضيف كل الفيديوهات المرفوعة للتطبيق تلقائياً
+    async function autoAddVideos(items, status) {
+      const fileId = document.getElementById('videoFile').value;
+      if (!fileId) {
+        status.textContent += ' | ⚠️ اختار المجلد عشان يتضافوا تلقائياً';
+        return;
+      }
+      let added = 0;
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const title = String(it.filename || 'فيديو')
+          .replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 60);
+        try {
+          const dur = await new Promise((res) => readDurationFromUrl(it.url, (d) => res(d || '0:00')));
+          const r = await fetch('/api/videos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, fileId: Number(fileId), url: it.url, duration: dur, isVertical: false }),
+          });
+          if (r.ok) added++;
+        } catch (e) { /* تجاهل */ }
+        if (status) status.textContent = '✅ اترفع ' + items.length + ' | 📥 بيتضاف للتطبيق: ' + (i + 1) + '/' + items.length;
+      }
+      if (status) status.textContent = '🎉 خلص! اترفع ' + items.length + ' واتضاف ' + added + ' للتطبيق';
+      showToast('🎉 اترفع ' + items.length + ' واتضاف ' + added);
+      loadData().then(render);
     }
 
     function onUrlTyped() {
@@ -708,36 +833,6 @@
       if (!u) { pickedVideoDuration = '0:00'; return; }
       // بيشتغل مع الروابط الكاملة والنسبية (/uploads/x.mp4) — المتصفح بيحل النسبي لوحده
       readDurationFromUrl(u, (d) => { if (d) pickedVideoDuration = d; });
-    }
-
-    async function uploadVideo() {
-      const input = document.getElementById('videoUploadInput');
-      const status = document.getElementById('uploadStatus');
-      if (!input || !input.files || !input.files[0]) { showToast('اختر فيديو الأول'); return; }
-      const f = input.files[0];
-      if (f.size > 500 * 1024 * 1024) { showToast('الملف أكبر من 500 ميجا'); return; }
-      const sizeMB = (f.size / 1024 / 1024).toFixed(1);
-      const fd = new FormData();
-      fd.append('video', f);
-      status.textContent = '⏳ جاري رفع ' + sizeMB + ' ميجا... (ممكن ياخد وقت على النت البطيء)';
-      try {
-        const r = await fetch('/api/upload', { method: 'POST', body: fd });
-        const data = await r.json();
-        if (!r.ok) { status.textContent = '❌ ' + (data.error || 'فشل الرفع'); showToast('فشل الرفع'); return; }
-        document.getElementById('newVideoUrl').value = data.url;
-        status.textContent = '✅ اترفع! (' + sizeMB + ' ميجا) — بقرا المدة...';
-        // نتأكد من المدة من الملف المرفوع نفسه (احتياطي لو القراءة الأولى فشلت)
-        readDurationFromUrl(data.url, (d) => {
-          if (d) pickedVideoDuration = d;
-          if (status) {
-            status.textContent = '✅ اترفع! (' + sizeMB + ' ميجا) المدة: ' + (pickedVideoDuration || '0:00')
-              + ' — دلوقتي اضغط «٢) أضف الفيديو للتطبيق»';
-          }
-        });
-        showToast('تم رفع الفيديو');
-      } catch (e) {
-        status.textContent = '❌ فشل الاتصال بالسيرفر';
-      }
     }
 
     async function addVideo() {
