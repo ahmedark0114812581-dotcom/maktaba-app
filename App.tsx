@@ -29,6 +29,9 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
+// وضع لوحة التحكم (تطبيق منفصل بيفتح لوحة التحكم في WebView)
+const ADMIN_MODE = process.env.EXPO_PUBLIC_ADMIN_MODE === 'true';
+
 // الفيديوهات المرفوعة على السيرفر بتتخزن كرابط نسبي (/uploads/x.mp4) — هنا بنحوّله لرابط كامل
 function resolveUrl(u: string): string {
   if (!u) return u;
@@ -350,8 +353,40 @@ function PlayerScreen({
   );
 }
 
+// ============ وضع لوحة التحكم ============
+function AdminApp() {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0e1116' }}>
+      <StatusBar barStyle="light-content" backgroundColor="#0e1116" />
+      <WebView
+        source={{ uri: API_URL }}
+        style={{ flex: 1, marginTop: insets.top }}
+        javaScriptEnabled
+        domStorageEnabled
+        startInLoadingState
+        originWhitelist={['*']}
+        mixedContentMode="always"
+        renderLoading={() => (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0e1116' }}>
+            <ActivityIndicator size="large" color="#43A047" />
+            <Text style={{ color: '#8b949e', marginTop: 12 }}>⏳ جاري التحميل...</Text>
+          </View>
+        )}
+      />
+    </View>
+  );
+}
+
 // ============ التطبيق ============
 export default function App() {
+  if (ADMIN_MODE) {
+    return (
+      <SafeAreaProvider>
+        <AdminApp />
+      </SafeAreaProvider>
+    );
+  }
   return (
     <SafeAreaProvider>
       <MainApp />

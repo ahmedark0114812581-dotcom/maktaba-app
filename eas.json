@@ -24,6 +24,16 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://maktaba-app-4.onrender.com"
       }
+    },
+    "admin": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://maktaba-app-4.onrender.com",
+        "EXPO_PUBLIC_ADMIN_MODE": "true"
+      }
     }
   }
 }
