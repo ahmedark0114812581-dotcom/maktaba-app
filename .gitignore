@@ -6,4 +6,7 @@ web-build/
 data.json
 uploads/
 *.apk
-*.apk
+*.log
+server.log
+server.err.log
+.env.production

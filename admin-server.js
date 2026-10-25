@@ -108,27 +108,29 @@ function loadData() {
   }
   return {
     users: {},
-    files: [
-      { id: 1, name: 'رياضيات', count: 0, createdAt: Date.now() },
-      { id: 2, name: 'كيمياء', count: 0, createdAt: Date.now() },
-      { id: 3, name: 'فيزياء', count: 0, createdAt: Date.now() },
-    ],
+    files: [],
     videos: [],
     requests: [],
     codes: [],
     downloads: [],
     config: {},
-    analytics: { totalViews: 0, VideosWatched: 0, dailyUsers: [] }
+    analytics: { totalViews: 0, videosWatched: 0, dailyUsers: [] }
   };
 }
 
 function saveData() {
+  const payload = JSON.stringify({ users, files, videos, requests, codes, downloads, config, analytics }, null, 2);
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ users, files, videos, requests, codes, downloads, config, analytics }, null, 2));
+    fs.writeFileSync(DATA_FILE, payload);
   } catch (e) {
     console.error('Error saving data:', e);
   }
+  // نسخة احتياطية على B2 — عشان Render المجاني بيمسح القرص مع كل إعادة تشغيل
+  persistToCloud(payload);
 }
+
+// بتتحط بعد تهيئة B2 (تحت) — no-op لو B2 مش مفعّل
+let persistToCloud = () => {};
 
 let { users, files, videos, requests, codes, downloads, config, analytics } = loadData();
 
@@ -613,6 +615,58 @@ if (useB2) {
   }
 } else {
   console.log('💾 التخزين محلي (B2 مش مضبوط في .env)');
+}
+
+// ============ نسخة احتياطية للبيانات على B2 ============
+// Render المجاني بيمسح القرص مع كل إعادة تشغيل/نشر → data.json بيضيع
+// الحل: نحفظ نسخة على B2 ونسترجعها لو الملف المحلي مش موجود
+const DATA_BACKUP_KEY = process.env.DATA_BACKUP_KEY || 'data/backup.json';
+
+if (useB2 && s3 && PutObjectCommand && GetObjectCommand) {
+  let lastPersist = 0;
+  let pendingTimer = null;
+
+  persistToCloud = (payload) => {
+    // تجميع الكتابات السريعة — بدل رفع مع كل ضغطة
+    if (pendingTimer) clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(() => {
+      pendingTimer = null;
+      lastPersist = Date.now();
+      s3.send(new PutObjectCommand({
+        Bucket: B2_BUCKET,
+        Key: DATA_BACKUP_KEY,
+        Body: payload,
+        ContentType: 'application/json',
+      })).catch((e) => console.error('⚠️  فشل حفظ النسخة على B2:', e.message));
+    }, 1200);
+  };
+
+  // استرجاع عند بدء التشغيل لو مفيش ملف محلي
+  (async () => {
+    if (fs.existsSync(DATA_FILE)) {
+      console.log('📂 data.json موجود محلياً — مش محتاج استرجاع');
+      return;
+    }
+    try {
+      const r = await s3.send(new GetObjectCommand({ Bucket: B2_BUCKET, Key: DATA_BACKUP_KEY }));
+      const body = await r.Body.transformToString();
+      const d = JSON.parse(body);
+      users = d.users || {};
+      files = d.files || [];
+      videos = d.videos || [];
+      requests = d.requests || [];
+      codes = d.codes || [];
+      downloads = d.downloads || [];
+      config = d.config || {};
+      analytics = d.analytics || { totalViews: 0, videosWatched: 0, dailyUsers: [] };
+      fs.writeFileSync(DATA_FILE, body);
+      console.log('♻️  تم استرجاع البيانات من B2 — ملفات:', files.length, '| فيديوهات:', videos.length);
+    } catch (e) {
+      console.log('ℹ️  مفيش نسخة على B2 — بداية جديدة فاضية');
+    }
+  })();
+} else {
+  console.log('ℹ️  نسخة B2 غير مفعّلة — البيانات محلية بس (هتضيع على Render)');
 }
 
 // بنخزّن الفيديوهات على B2 بالشكل: b2://videos/xxx.mp4
