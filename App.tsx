@@ -163,27 +163,20 @@ type ThemeKey = keyof typeof themes;
 type Theme = typeof themes.light;
 
 // ============ DATA ============
-const folders = [
-  { id: 1, name: 'رياضيات', count: 12, color: '#FF2F93' },
-  { id: 2, name: 'كيمياء', count: 8, color: '#00D4FF' },
-  { id: 3, name: 'فيزياء', count: 15, color: '#FFD700' },
-  { id: 4, name: 'لغة عربية', count: 20, color: '#00FF88' },
-  { id: 5, name: 'تاريخ', count: 6, color: '#FF6B35' },
-  { id: 6, name: 'جغرافيا', count: 4, color: '#9B59B6' },
-];
+// البيانات الحقيقية بتيجي من السيرفر — مفيش بيانات وهمية
+const folders: FolderItem[] = [];
 
-const sampleVideos = [
-  { id: 1, title: 'مقدمة في البرمجة', duration: '0:10', views: '546', folderId: 1, url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4', isVertical: false },
-  { id: 2, title: 'أساسيات التصميم', duration: '0:10', views: '115', folderId: 1, url: 'https://test-videos.co.uk/vids/jellyfish/mp4/h264/720/Jellyfish_720_10s_1MB.mp4', isVertical: false },
-  { id: 3, title: 'تعلم الربح من الإنترنت', duration: '0:10', views: '89', folderId: 2, url: 'https://test-videos.co.uk/vids/sintel/mp4/h264/720/Sintel_720_10s_1MB.mp4', isVertical: false },
-  { id: 4, title: 'أفضل تطبيقات 2025', duration: '0:05', views: '67', folderId: 3, url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', isVertical: true },
-  { id: 5, title: 'مراجعة هاتف جديد', duration: '0:13', views: '45', folderId: 4, url: 'https://filesamples.com/samples/video/mp4/sample_640x360.mp4', isVertical: false },
-  { id: 6, title: 'سرعة الإنجاز', duration: '0:06', views: '34', folderId: 5, url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4', isVertical: true },
-  { id: 7, title: 'شرح المعادلات', duration: '0:10', views: '234', folderId: 1, url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_2MB.mp4', isVertical: false },
-  { id: 8, title: 'الجدول الدوري', duration: '0:08', views: '178', folderId: 2, url: 'https://mdn.github.io/learning-area/html/multimedia-and-embedding/video-and-audio-content/rabbit320.mp4', isVertical: false },
-];
+const sampleVideos: VideoItem[] = [];
 
-type VideoItem = typeof sampleVideos[0];
+type VideoItem = {
+  id: number;
+  title: string;
+  duration: string;
+  views: string;
+  folderId: number;
+  url: string;
+  isVertical: boolean;
+};
 
 type FolderItem = { id: number; name: string; count: number; color: string };
 
@@ -468,7 +461,7 @@ function MainApp() {
         const fJson = await fRes.json();
         const vJson = await vRes.json();
         const vids: any[] = Array.isArray(vJson) ? vJson : (vJson.data || []);
-        if (cancelled || vids.length === 0) return; // مفيش فيديوهات على السيرفر → نفضل على البيانات المدمجة
+        if (cancelled) return;
         const flist: any[] = Array.isArray(fJson) ? fJson : [];
         setFoldersData(
           flist.map((f, i) => ({
@@ -761,6 +754,11 @@ function MainApp() {
       </View>
 
       <View style={styles.grid}>
+        {shownFolders.length === 0 && (
+          <Text style={[styles.emptyText, { color: t.textSecondary }]}>
+            مفيش ملفات لسه — أضفها من لوحة التحكم
+          </Text>
+        )}
         {shownFolders.map((folder) => (
           <TouchableOpacity
             key={folder.id}
@@ -800,9 +798,22 @@ function MainApp() {
       <TouchableOpacity
         style={[styles.submitBtn, { backgroundColor: t.accent, opacity: requestText.trim().length >= 3 ? 1 : 0.5 }]}
         disabled={requestText.trim().length < 3}
-        onPress={() => {
-          setRequests([{ id: Date.now(), text: requestText.trim(), status: 'قيد المراجعة' }, ...requests]);
+        onPress={async () => {
+          const txt = requestText.trim();
           setRequestText('');
+          try {
+            const r = await fetch(`${API_URL}/api/requests`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: txt }),
+            });
+            if (r.ok) {
+              const saved = await r.json();
+              setRequests([saved, ...requests]);
+              return;
+            }
+          } catch (e) { /* السيرفر مش متاح */ }
+          setRequests([{ id: Date.now(), text: txt, status: 'قيد المراجعة' }, ...requests]);
         }}
       >
         <Text style={styles.submitBtnText}>إرسال</Text>

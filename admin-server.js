@@ -229,7 +229,7 @@ app.get('/api/admin/check', (req, res) => {
 // كل عمليات الكتابة لازم توكن جلسة صالح (أو المفتاح الرئيسي للسكربتات)
 function requireAuth(req, res, next) {
   const token = req.headers['x-admin-token'];
-  if (typeof token === 'string' && token.length >= 16) {
+  if (typeof token === 'string' && token.length > 0) {
     const a = Buffer.from(token);
     const b = Buffer.from(ADMIN_TOKEN);
     if (a.length === b.length && crypto.timingSafeEqual(a, b)) return next();
