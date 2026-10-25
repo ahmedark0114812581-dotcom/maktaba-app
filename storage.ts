@@ -199,3 +199,37 @@ export async function authenticateWithBiometrics(): Promise<boolean> {
     return false;
   }
 }
+
+// ============ حذف كل بيانات المستخدم (مطلوب لمتاجر التطبيقات) ============
+export async function clearAllData(): Promise<void> {
+  // 1) حذف كل الملفات المحملة + قائمة التحميلات من السيرفر
+  try {
+    const list = await getDownloadsList();
+    for (const d of list) {
+      if (d.id) await removeDownload(d.id);
+      if (d.videoId) await deleteLocalVideo(d.videoId);
+    }
+  } catch (e) { /* تجاهل */ }
+
+  // 2) مسح مجلد التحميلات بالكامل
+  try {
+    if (Platform.OS !== 'web') {
+      const dir = getDownloadsDir();
+      const info = await FileSystem.getInfoAsync(dir);
+      if (info.exists) await FileSystem.deleteAsync(dir, { idempotent: true });
+    }
+  } catch (e) { /* تجاهل */ }
+
+  // 3) قفل البصمة
+  try { await setLockEnabled(false); } catch (e) { /* تجاهل */ }
+
+  // 4) معرّف الجهاز — مسحه بيعني حساب/اشتراك جديد
+  try {
+    cachedDeviceId = null;
+    if (Platform.OS !== 'web') {
+      const f = FileSystem.documentDirectory + 'device.id';
+      const info = await FileSystem.getInfoAsync(f);
+      if (info.exists) await FileSystem.deleteAsync(f, { idempotent: true });
+    }
+  } catch (e) { /* تجاهل */ }
+}

@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
   AppState,
   RefreshControl,
+  Linking,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEvent } from 'expo';
@@ -24,7 +26,7 @@ import { WebView } from 'react-native-webview';
 import {
   getLocalVideoUri, downloadVideo, deleteLocalVideo, getDownloadsList,
   isSubscribed, activateCode, registerDownload, removeDownload, isWeb,
-  isLockEnabled, setLockEnabled, authenticateWithBiometrics,
+  isLockEnabled, setLockEnabled, authenticateWithBiometrics, clearAllData,
 } from './storage';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -543,6 +545,31 @@ function MainApp() {
     }
   }, []);
 
+  // ============ حذف بيانات المستخدم ============
+  const handleDeleteData = useCallback(() => {
+    const doDelete = async () => {
+      await clearAllData();
+      setDownloads([]);
+      setPremium(false);
+      setLockEnabledState(false);
+      alert('✅ اتمسحت بياناتك (سجل المشاهدة + التحميلات + الاشتراك).');
+    };
+    if (isWeb()) {
+      // على الويب مفيش Alert.alert بزرارين — نستخدم confirm
+      // eslint-disable-next-line no-alert
+      if (typeof window !== 'undefined' && window.confirm('متأكد؟ هيتمسح سجل المشاهدة والتحميلات والاشتراك.')) doDelete();
+      return;
+    }
+    Alert.alert(
+      'حذف بياناتي',
+      'هيتمسح سجل المشاهدة والتحميلات والاشتراك من هذا الجهاز. مش هتقدر ترجعهم.',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'حذف', style: 'destructive', onPress: doDelete },
+      ]
+    );
+  }, []);
+
   // ============ الإعلانات ============
   // ٧٠% عند فتح التطبيق (للغير مشتركين)
   useEffect(() => {
@@ -918,6 +945,32 @@ function MainApp() {
           <Text style={[styles.moreText, { color: t.text }]}>{item.label}</Text>
         </TouchableOpacity>
       ))}
+
+      <Text style={[styles.moreSectionTitle, { color: t.textSecondary }]}>قانوني</Text>
+      <TouchableOpacity
+        style={[styles.moreItem, { backgroundColor: t.card, borderColor: t.border }]}
+        onPress={() => Linking.openURL(`${API_URL}/legal/privacy.html`)}
+      >
+        <Text style={styles.moreIcon}>🔐</Text>
+        <Text style={[styles.moreText, { color: t.text }]}>سياسة الخصوصية</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.moreItem, { backgroundColor: t.card, borderColor: t.border }]}
+        onPress={() => Linking.openURL(`${API_URL}/legal/terms.html`)}
+      >
+        <Text style={styles.moreIcon}>📄</Text>
+        <Text style={[styles.moreText, { color: t.text }]}>شروط الاستخدام</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.moreItem, { backgroundColor: t.card, borderColor: t.border }]}
+        onPress={handleDeleteData}
+      >
+        <Text style={styles.moreIcon}>🗑️</Text>
+        <Text style={[styles.moreText, { color: '#c62828' }]}>حذف بياناتي</Text>
+      </TouchableOpacity>
+      <Text style={[styles.lockHint, { color: t.textSecondary }]}>
+        يحذف سجل المشاهدة والتحميلات والاشتراك من هذا الجهاز
+      </Text>
 
       <Text style={[styles.moreSectionTitle, { color: t.textSecondary }]}>الأمان</Text>
       <TouchableOpacity
