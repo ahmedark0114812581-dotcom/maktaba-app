@@ -11,6 +11,8 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
+  AppState,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEvent } from 'expo';
@@ -446,46 +448,58 @@ function MainApp() {
 
   const bannerSource = bannerUri ? { uri: bannerUri } : require('./assets/banner.png');
 
-  // بيانات الملفات والفيديوهات: من السيرفر لو فيها فيديوهات، وإلا البيانات المدمجة
+  // بيانات الملفات والفيديوهات: من السيرفر (مع إمكانية التحديث)
   const [foldersData, setFoldersData] = useState<FolderItem[]>(folders);
   const [videosData, setVideosData] = useState<VideoItem[]>(sampleVideos);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [fRes, vRes] = await Promise.all([
-          fetch(`${API_URL}/api/files`),
-          fetch(`${API_URL}/api/videos?limit=200`),
-        ]);
-        if (!fRes.ok || !vRes.ok) return;
-        const fJson = await fRes.json();
-        const vJson = await vRes.json();
-        const vids: any[] = Array.isArray(vJson) ? vJson : (vJson.data || []);
-        if (cancelled) return;
-        const flist: any[] = Array.isArray(fJson) ? fJson : [];
-        setFoldersData(
-          flist.map((f, i) => ({
-            id: Number(f.id),
-            name: String(f.name ?? ''),
-            count: Number(f.count ?? 0),
-            color: FOLDER_COLORS[i % FOLDER_COLORS.length],
-          }))
-        );
-        setVideosData(
-          vids.map((v) => ({
-            id: Number(v.id),
-            title: String(v.title ?? ''),
-            duration: String(v.duration ?? '0:00'),
-            views: String(v.views ?? 0),
-            folderId: Number(v.folderId ?? v.fileId ?? 0),
-            url: String(v.playUrl || v.url || ''),
-            isVertical: Boolean(v.isVertical),
-          }))
-        );
-      } catch (e) { /* نستخدم البيانات المدمجة */ }
-    })();
-    return () => { cancelled = true; };
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadServerData = useCallback(async () => {
+    try {
+      const [fRes, vRes] = await Promise.all([
+        fetch(`${API_URL}/api/files`),
+        fetch(`${API_URL}/api/videos?limit=200`),
+      ]);
+      if (!fRes.ok || !vRes.ok) return;
+      const fJson = await fRes.json();
+      const vJson = await vRes.json();
+      const vids: any[] = Array.isArray(vJson) ? vJson : (vJson.data || []);
+      const flist: any[] = Array.isArray(fJson) ? fJson : [];
+      setFoldersData(
+        flist.map((f, i) => ({
+          id: Number(f.id),
+          name: String(f.name ?? ''),
+          count: Number(f.count ?? 0),
+          color: FOLDER_COLORS[i % FOLDER_COLORS.length],
+        }))
+      );
+      setVideosData(
+        vids.map((v) => ({
+          id: Number(v.id),
+          title: String(v.title ?? ''),
+          duration: String(v.duration ?? '0:00'),
+          views: String(v.views ?? 0),
+          folderId: Number(v.folderId ?? v.fileId ?? 0),
+          url: String(v.playUrl || v.url || ''),
+          isVertical: Boolean(v.isVertical),
+        }))
+      );
+    } catch (e) { /* السيرفر مش متاح */ }
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadServerData();
+    setRefreshing(false);
+  }, [loadServerData]);
+
+  // تحميل أول مرة + تحديث كل ما التطبيق يرجع للمقدمة
+  useEffect(() => {
+    loadServerData();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') loadServerData();
+    });
+    return () => sub.remove();
+  }, [loadServerData]);
 
   // حالة الاشتراك + قائمة التحميلات
   useEffect(() => {
@@ -710,7 +724,18 @@ function MainApp() {
 
   // ============ HOME ============
   const renderHome = () => (
-    <ScrollView style={[styles.container, { backgroundColor: t.bg }]} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: t.bg }]}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[t.accent]}
+          tintColor={t.accent}
+        />
+      }
+    >
       <View style={styles.homeTop}>
         <Image source={require('./assets/icon.png')} style={[styles.avatar, { borderColor: t.accent }]} />
         <Text style={[styles.homeTitle, { color: t.text }]}>المكتبة 🔥</Text>

@@ -715,6 +715,8 @@
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/upload');
+        // ⚠️ XMLHttpRequest مش بيمر على window.fetch المعدّل — لازم التوكن يدوي
+        try { xhr.setRequestHeader('x-admin-token', getToken()); } catch (e) {}
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
         };
@@ -722,6 +724,7 @@
           try {
             const data = JSON.parse(xhr.responseText);
             if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+            else if (xhr.status === 401) { showLogin('الجلسة انتهت — سجّل دخول تاني'); reject(new Error('انتهت الجلسة')); }
             else reject(new Error(data.error || 'فشل الرفع'));
           } catch (e) { reject(new Error('رد غير متوقع')); }
         };
