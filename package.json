@@ -5,6 +5,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
     "@aws-sdk/s3-request-presigner": "^3.1152.0",
+    "axios": "^1.20.0",
+    "cheerio": "^1.2.0",
     "expo": "~57.0.31",
     "expo-dev-client": "~57.0.20",
     "expo-file-system": "~57.0.7",
